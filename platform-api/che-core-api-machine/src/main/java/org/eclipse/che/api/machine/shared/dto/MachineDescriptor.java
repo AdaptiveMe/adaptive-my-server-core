@@ -12,6 +12,7 @@ package org.eclipse.che.api.machine.shared.dto;
 
 import org.eclipse.che.api.core.rest.shared.dto.Hyperlinks;
 import org.eclipse.che.api.core.rest.shared.dto.Link;
+import org.eclipse.che.api.machine.server.spi.ExposedPort;
 import org.eclipse.che.api.machine.shared.MachineState;
 import org.eclipse.che.dto.shared.DTO;
 
@@ -22,6 +23,7 @@ import java.util.Map;
  * Describes created machine
  *
  * @author andrew00x
+ * @author Alexander Garagatyi
  */
 @DTO
 public interface MachineDescriptor extends Hyperlinks {
@@ -82,11 +84,20 @@ public interface MachineDescriptor extends Hyperlinks {
     /**
      * Implementation specific information about machine
      */
-    Map<String, String> getMetadata();
+    Map<String, String> getProperties();
 
-    void setMetadata(Map<String, String> metadata);
+    void setProperties(Map<String, String> metadata);
 
-    MachineDescriptor withMetadata(Map<String, String> metadata);
+    MachineDescriptor withProperties(Map<String, String> metadata);
+
+    /**
+     * Port mapping for machine
+     */
+    Map<String, List<ExposedPortDescriptor>> getExposedPorts();
+
+    void setExposedPorts(Map<String, List<ExposedPortDescriptor>> exposedPorts);
+
+    MachineDescriptor withExposedPorts(Map<String, List<ExposedPortDescriptor>> exposedPorts);
 
     @Override
     MachineDescriptor withLinks(List<Link> links);

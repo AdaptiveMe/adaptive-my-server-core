@@ -18,10 +18,13 @@ import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.api.core.util.LineConsumer;
 import org.eclipse.che.api.core.util.WebsocketLineConsumer;
 import org.eclipse.che.api.machine.server.recipe.RecipeImpl;
+import org.eclipse.che.api.machine.server.spi.ExposedPort;
+import org.eclipse.che.api.machine.server.spi.InstanceMetadata;
 import org.eclipse.che.api.machine.shared.ProjectBinding;
 import org.eclipse.che.api.machine.shared.dto.CommandDescriptor;
 import org.eclipse.che.api.machine.shared.dto.CreateMachineFromRecipe;
 import org.eclipse.che.api.machine.shared.dto.CreateMachineFromSnapshot;
+import org.eclipse.che.api.machine.shared.dto.ExposedPortDescriptor;
 import org.eclipse.che.api.machine.shared.dto.MachineDescriptor;
 import org.eclipse.che.api.machine.shared.dto.NewSnapshotDescriptor;
 import org.eclipse.che.api.machine.shared.dto.ProcessDescriptor;
@@ -48,8 +51,10 @@ import javax.ws.rs.core.MediaType;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Machine API
@@ -365,15 +370,39 @@ public class MachineService {
                                              .withLinks(null)); // TODO
         }
 
-        return dtoFactory.createDto(MachineDescriptor.class)
-                         .withId(machine.getId())
-                         .withType(machine.getType())
-                         .withState(machine.getState())
-                         .withOwner(machine.getOwner())
-                         .withWorkspaceId(machine.getWorkspaceId())
-                         .withProjects(projectDescriptors)
-                         .withMetadata(machine.getInstance() != null ? machine.getInstance().getMetadata().getProperties() : null)
-                         .withLinks(null); // TODO
+        final MachineDescriptor machineDescriptor = dtoFactory.createDto(MachineDescriptor.class)
+                                                              .withId(machine.getId())
+                                                              .withType(machine.getType())
+                                                              .withState(machine.getState())
+                                                              .withOwner(machine.getOwner())
+                                                              .withWorkspaceId(machine.getWorkspaceId())
+                                                              .withProjects(projectDescriptors);
+
+        if (machine.getInstance() != null) {
+            final InstanceMetadata metadata = machine.getInstance().getMetadata();
+            machineDescriptor.withProperties(metadata.getProperties())
+                             .withExposedPorts(convert(metadata.getExposedPorts()));
+        }
+        machineDescriptor.setLinks(null); // TODO
+
+        return machineDescriptor;
+    }
+
+    private Map<String, List<ExposedPortDescriptor>> convert(Map<String, List<ExposedPort>> exposedPorts) {
+        final Map<String, List<ExposedPortDescriptor>> result = new HashMap<>(exposedPorts.size());
+        for (Map.Entry<String, List<ExposedPort>> exposedPortProtocol : exposedPorts.entrySet()) {
+            final List<ExposedPortDescriptor> portProtocolDescriptors = new ArrayList<>(exposedPortProtocol.getValue().size());
+            for (ExposedPort exposedPort : exposedPortProtocol.getValue()) {
+                portProtocolDescriptors.add(dtoFactory.createDto(ExposedPortDescriptor.class)
+                                                      .withExternalPort(exposedPort.getExternalPort())
+                                                      .withInternalPort(exposedPort.getInternalPort())
+                                                      .withHost(exposedPort.getHost())
+                                                      .withProtocol(exposedPort.getProtocol()));
+            }
+            result.put(exposedPortProtocol.getKey(), portProtocolDescriptors);
+        }
+
+        return result;
     }
 
     private ProcessDescriptor toDescriptor(ProcessImpl process) throws ServerException {
