@@ -29,8 +29,12 @@ import org.eclipse.che.ide.api.action.Presentation;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.app.CurrentProject;
 import org.eclipse.che.ide.api.event.OpenProjectEvent;
+import org.eclipse.che.ide.api.event.PersistProjectStateHandler;
+import org.eclipse.che.ide.api.event.PersistProjectStateEvent;
 import org.eclipse.che.ide.api.event.ProjectActionEvent;
 import org.eclipse.che.ide.api.event.ProjectActionHandler;
+import org.eclipse.che.ide.api.event.RestoreProjectStateHandler;
+import org.eclipse.che.ide.api.event.RestoreProjectStateEvent;
 import org.eclipse.che.ide.api.event.WindowActionEvent;
 import org.eclipse.che.ide.api.event.WindowActionHandler;
 import org.eclipse.che.ide.api.preferences.PreferencesManager;
@@ -89,6 +93,25 @@ public class AppStateManager implements WindowActionHandler, ProjectActionHandle
         this.actionManager = actionManager;
         this.presentationFactory = presentationFactory;
         this.projectServiceClient = projectServiceClient;
+        bind();
+    }
+
+    private void bind() {
+        eventBus.addHandler(PersistProjectStateEvent.TYPE, new PersistProjectStateHandler() {
+            @Override
+            public void onPersist(PersistProjectStateEvent event) {
+                persistCurrentProjectState();
+            }
+        });
+
+        eventBus.addHandler(RestoreProjectStateEvent.TYPE, new RestoreProjectStateHandler() {
+            @Override
+            public void onRestore(RestoreProjectStateEvent event) {
+                final String projectPath = event.getProjectPath();
+                final ProjectState projectState = appState.getProjects().get(projectPath);
+                restoreCurrentProjectState(projectState);
+            }
+        });
     }
 
     @Override
