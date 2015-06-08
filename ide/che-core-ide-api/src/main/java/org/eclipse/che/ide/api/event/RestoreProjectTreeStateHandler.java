@@ -13,11 +13,16 @@ package org.eclipse.che.ide.api.event;
 import com.google.gwt.event.shared.EventHandler;
 
 /**
- * @author Vitaly Parfonov
+ * A handler for handling {@link RestoreProjectTreeStateEvent}.
+ *
+ * @author Roman Nikitenko
  */
-@Deprecated
-public interface ProjectDescriptorChangedHandler extends EventHandler {
-
-
-    public void onProjectDescriptorChanged(ProjectDescriptorChangedEvent event);
+public interface RestoreProjectTreeStateHandler extends EventHandler {
+    /**
+     * Called when the project tree state should be restored.
+     *
+     * @param event
+     *         the fired {@link RestoreProjectTreeStateEvent}
+     */
+    void onRestore(RestoreProjectTreeStateEvent event);
 }

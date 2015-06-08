@@ -13,11 +13,16 @@ package org.eclipse.che.ide.api.event;
 import com.google.gwt.event.shared.EventHandler;
 
 /**
- * @author Vitaly Parfonov
+ * A handler for handling {@link PersistProjectTreeStateEvent}.
+ *
+ * @author Roman Nikitenko
  */
-@Deprecated
-public interface ProjectDescriptorChangedHandler extends EventHandler {
-
-
-    public void onProjectDescriptorChanged(ProjectDescriptorChangedEvent event);
+public interface PersistProjectTreeStateHandler extends EventHandler {
+    /**
+     * Called when the project state should be persisted.
+     *
+     * @param event
+     *         the fired {@link PersistProjectTreeStateEvent}
+     */
+    void onPersist(PersistProjectTreeStateEvent event);
 }
