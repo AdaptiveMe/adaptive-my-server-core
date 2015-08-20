@@ -10,8 +10,6 @@
  *******************************************************************************/
 package org.eclipse.che.ide.ui.dialogs.choice;
 
-import org.eclipse.che.ide.ui.dialogs.choice.ChoiceDialogView.ActionDelegate;
-import org.eclipse.che.ide.ui.window.Window.Resources;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.uibinder.client.UiBinder;
@@ -35,10 +33,16 @@ public class ChoiceDialogFooter extends Composite {
     private static final Window.Resources           resources = GWT.create(Window.Resources.class);
     /** The UI binder instance. */
     private static       ChoiceDialogFooterUiBinder uiBinder  = GWT.create(ChoiceDialogFooterUiBinder.class);
+
     @UiField
     Button firstChoiceButton;
+
     @UiField
     Button secondChoiceButton;
+
+    @UiField
+    Button thirdChoiceButton;
+
     /** The action delegate. */
     private ChoiceDialogView.ActionDelegate actionDelegate;
 
@@ -48,8 +52,12 @@ public class ChoiceDialogFooter extends Composite {
 
         firstChoiceButton.addStyleName(resources.centerPanelCss().blueButton());
         firstChoiceButton.getElement().setId("ask-dialog-first");
+
         secondChoiceButton.addStyleName(resources.centerPanelCss().button());
         secondChoiceButton.getElement().setId("ask-dialog-second");
+
+        thirdChoiceButton.addStyleName(resources.centerPanelCss().button());
+        thirdChoiceButton.getElement().setId("ask-dialog-third");
     }
 
     /**
@@ -80,6 +88,16 @@ public class ChoiceDialogFooter extends Composite {
     @UiHandler("secondChoiceButton")
     public void handleSecondChoiceClick(final ClickEvent event) {
         this.actionDelegate.secondChoiceClicked();
+    }
+
+    /**
+     * Handler set on the third button.
+     *
+     * @param event the event that triggers the handler call
+     */
+    @UiHandler("thirdChoiceButton")
+    public void handleThirdChoiceClick(final ClickEvent event) {
+        this.actionDelegate.thirdChoiceClicked();
     }
 
     /** The UI binder interface for this component. */

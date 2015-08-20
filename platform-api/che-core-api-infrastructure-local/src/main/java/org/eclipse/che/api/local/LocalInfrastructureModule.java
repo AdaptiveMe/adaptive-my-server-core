@@ -15,9 +15,9 @@ import com.google.inject.Provides;
 
 import org.eclipse.che.api.account.server.dao.Account;
 import org.eclipse.che.api.account.server.dao.AccountDao;
-import org.eclipse.che.api.account.server.dao.Subscription;
 import org.eclipse.che.api.auth.AuthenticationDao;
 import org.eclipse.che.api.factory.FactoryStore;
+import org.eclipse.che.api.local.storage.LocalStorageFactory;
 import org.eclipse.che.api.user.server.TokenValidator;
 import org.eclipse.che.api.user.server.dao.PreferenceDao;
 import org.eclipse.che.api.user.server.dao.User;
@@ -45,8 +45,9 @@ public class LocalInfrastructureModule extends AbstractModule {
         bind(MemberDao.class).to(LocalMemberDaoImpl.class);
         bind(AccountDao.class).to(LocalAccountDaoImpl.class);
         bind(AuthenticationDao.class).to(LocalAuthenticationDaoImpl.class);
-        bind(FactoryStore.class).to(InMemoryFactoryStore.class);
+        bind(FactoryStore.class).to(LocalFactoryDaoImpl.class);
         bind(TokenValidator.class).to(DummyTokenValidator.class);
+        bind(LocalStorageFactory.class);
     }
 
 
@@ -69,12 +70,6 @@ public class LocalInfrastructureModule extends AbstractModule {
         Collections.addAll(member.getRoles(), "account/owner", "account/member");
         members.add(member);
         return members;
-    }
-
-    @Provides
-    @Named("codenvy.local.infrastructure.account.subscriptions")
-    Set<Subscription> subscriptions() {
-        return Collections.emptySet();
     }
 
     // AccountDao ~~~
@@ -116,9 +111,9 @@ public class LocalInfrastructureModule extends AbstractModule {
     Set<User> users() {
         final Set<User> users = new HashSet<>(1);
         final User user = new User().withId("codenvy")
-                                    .withEmail("codenvy@codenvy.com")
+                                    .withEmail("che@eclipse.org")
                                     .withPassword("secret");
-        user.getAliases().add("codenvy@codenvy.com");
+        user.getAliases().add("che@eclipse.org");
         users.add(user);
         return users;
     }

@@ -16,7 +16,7 @@
     <parent>
         <artifactId>che-core-api-parent</artifactId>
         <groupId>org.eclipse.che.core</groupId>
-        <version>3.10.1-SNAPSHOT</version>
+        <version>3.12.1-SNAPSHOT</version>
     </parent>
     <artifactId>che-core-api-project</artifactId>
     <packaging>jar</packaging>
@@ -47,6 +47,11 @@
         </dependency>
         <dependency>
             <groupId>org.eclipse.che.core</groupId>
+            <artifactId>che-core-api-workspace</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.che.core</groupId>
             <artifactId>che-core-commons-json</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -54,6 +59,12 @@
             <groupId>org.eclipse.che.core</groupId>
             <artifactId>che-core-commons-lang</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.websocket</groupId>
+            <artifactId>javax.websocket-api</artifactId>
+            <version>${javax.websocket.api.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>

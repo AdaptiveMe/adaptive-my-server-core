@@ -13,10 +13,14 @@ package org.eclipse.che.ide.ui.dropdown;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.event.dom.client.MouseDownEvent;
+import com.google.gwt.event.dom.client.MouseDownHandler;
 import com.google.gwt.event.dom.client.MouseOutEvent;
 import com.google.gwt.event.dom.client.MouseOutHandler;
 import com.google.gwt.event.dom.client.MouseOverEvent;
 import com.google.gwt.event.dom.client.MouseOverHandler;
+import com.google.gwt.event.dom.client.MouseUpEvent;
+import com.google.gwt.event.dom.client.MouseUpHandler;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.uibinder.client.UiBinder;
@@ -40,7 +44,12 @@ import javax.annotation.Nullable;
  *
  * @author Valeriy Svydenko
  */
-public class DropDownHeaderWidgetImpl extends Composite implements ClickHandler, MouseOutHandler, MouseOverHandler, DropDownHeaderWidget {
+public class DropDownHeaderWidgetImpl extends Composite implements ClickHandler,
+                                                                   MouseDownHandler,
+                                                                   MouseUpHandler,
+                                                                   MouseOutHandler,
+                                                                   MouseOverHandler,
+                                                                   DropDownHeaderWidget {
     private static final Resources resources = GWT.create(Resources.class);
 
     static {
@@ -53,13 +62,14 @@ public class DropDownHeaderWidgetImpl extends Composite implements ClickHandler,
     private static final HeaderWidgetImplUiBinder UI_BINDER = GWT.create(HeaderWidgetImplUiBinder.class);
 
     @UiField
-    SimpleLayoutPanel marker;
+    FlowPanel marker;
     @UiField
-    SimpleLayoutPanel selectedElementImage;
+    FlowPanel selectedElementImage;
     @UiField
     Label             selectedElementName;
     @UiField
     FlowPanel         selectedElement;
+
     @UiField
     FlowPanel         listHeader;
 
@@ -83,6 +93,8 @@ public class DropDownHeaderWidgetImpl extends Composite implements ClickHandler,
         selectedElement.setVisible(false);
 
         addDomHandler(this, ClickEvent.getType());
+        addDomHandler(this, MouseDownEvent.getType());
+        addDomHandler(this, MouseUpEvent.getType());
         addDomHandler(this, MouseOutEvent.getType());
         addDomHandler(this, MouseOverEvent.getType());
     }
@@ -124,6 +136,18 @@ public class DropDownHeaderWidgetImpl extends Composite implements ClickHandler,
 
     /** {@inheritDoc} */
     @Override
+    public void onMouseDown(MouseDownEvent event) {
+        listHeader.setStyleName(resources.dropdownListCss().onClick());
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void onMouseUp(MouseUpEvent event) {
+        listHeader.setStyleName(resources.dropdownListCss().onMouseOut());
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public void onMouseOut(MouseOutEvent event) {
         listHeader.setStyleName(resources.dropdownListCss().onMouseOut());
     }
@@ -141,6 +165,8 @@ public class DropDownHeaderWidgetImpl extends Composite implements ClickHandler,
         String onMouseOver();
 
         String onMouseOut();
+
+        String onClick();
     }
 
     public interface Resources extends ClientBundle {

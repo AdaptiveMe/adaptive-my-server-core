@@ -21,27 +21,36 @@ import java.util.List;
  */
 @DTO
 public interface UserDescriptor {
-    @ApiModelProperty(value = "User ID")
+    @ApiModelProperty("User ID")
     String getId();
 
     void setId(String id);
 
     UserDescriptor withId(String id);
 
+
+    @ApiModelProperty("User alias which is used for oAuth")
     List<String> getAliases();
 
     void setAliases(List<String> aliases);
 
     UserDescriptor withAliases(List<String> aliases);
 
-    @ApiModelProperty(value = "User email")
+    @ApiModelProperty("User email")
     String getEmail();
 
     void setEmail(String email);
 
     UserDescriptor withEmail(String email);
 
-    @ApiModelProperty(value = "User password")
+    @ApiModelProperty("User name")
+    String getName();
+
+    void setName(String name);
+
+    UserDescriptor withName(String name);
+
+    @ApiModelProperty("User password")
     String getPassword();
 
     void setPassword(String password);

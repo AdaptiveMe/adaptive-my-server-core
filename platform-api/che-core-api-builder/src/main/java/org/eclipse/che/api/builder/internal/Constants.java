@@ -65,13 +65,21 @@ public class Constants {
      */
     public static final String MAX_EXECUTION_TIME         = "builder.max_execution_time";
 
+    /** Build results archive type: .zip */
+    public static final String RESULT_ARCHIVE_ZIP         = "zip";
+    /** Build results archive type: .tar */
+    public static final String RESULT_ARCHIVE_TAR         = "tar";
+
     /* ================================================= */
 
     /** @deprecated use {@link #BASE_DIRECTORY} */
+    @Deprecated
     public static final String REPOSITORY          = BASE_DIRECTORY;
     /** @deprecated use {@link #KEEP_RESULT_TIME} */
+    @Deprecated
     public static final String CLEANUP_RESULT_TIME = KEEP_RESULT_TIME;
     /** @deprecated use {@link #QUEUE_SIZE} */
+    @Deprecated
     public static final String INTERNAL_QUEUE_SIZE = QUEUE_SIZE;
 
     // attributes of workspace which are interested for builder

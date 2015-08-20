@@ -27,6 +27,8 @@ import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 
+import javax.ws.rs.HttpMethod;
+
 import static java.nio.file.FileVisitResult.CONTINUE;
 import static java.nio.file.FileVisitResult.TERMINATE;
 
@@ -198,6 +200,7 @@ public class IoUtil {
      *         if creation of new directory failed
      * @deprecated - Use Files.createTempDirectory
      */
+    @Deprecated
     public static File createTempDirectory(File parent, String prefix) throws IOException {
         if (parent == null) {
             parent = new File(System.getProperty("java.io.tmpdir"));
@@ -215,6 +218,7 @@ public class IoUtil {
      *         if creation of new directory failed
      * @deprecated - Use Files.createTempDirectory
      */
+    @Deprecated
     public static File createTempDirectory(String prefix) throws IOException {
         return createTempDirectory(null, prefix);
     }
@@ -243,7 +247,7 @@ public class IoUtil {
             if ("http".equals(protocol) || "https".equals(protocol)) {
                 HttpURLConnection http = (HttpURLConnection)conn;
                 http.setInstanceFollowRedirects(false);
-                http.setRequestMethod("GET");
+                http.setRequestMethod(HttpMethod.GET);
             }
             try (InputStream input = conn.getInputStream();
                  FileOutputStream fOutput = new FileOutputStream(file)) {

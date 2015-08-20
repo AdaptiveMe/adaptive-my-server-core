@@ -18,7 +18,9 @@ import com.google.inject.name.Named;
 import org.eclipse.che.api.project.shared.Constants;
 import org.eclipse.che.ide.Resources;
 import org.eclipse.che.ide.actions.CloseProjectAction;
+import org.eclipse.che.ide.actions.CopyAction;
 import org.eclipse.che.ide.actions.CreateModuleAction;
+import org.eclipse.che.ide.actions.CutAction;
 import org.eclipse.che.ide.actions.DeleteItemAction;
 import org.eclipse.che.ide.actions.DownloadItemAction;
 import org.eclipse.che.ide.actions.DownloadProjectAsZipAction;
@@ -33,17 +35,13 @@ import org.eclipse.che.ide.actions.OpenFileAction;
 import org.eclipse.che.ide.actions.OpenProjectAction;
 import org.eclipse.che.ide.actions.OpenNodeAction;
 import org.eclipse.che.ide.actions.OpenSelectedFileAction;
+import org.eclipse.che.ide.actions.PasteAction;
 import org.eclipse.che.ide.actions.ProjectConfigurationAction;
-import org.eclipse.che.ide.actions.RedirectToFeedbackAction;
-import org.eclipse.che.ide.actions.RedirectToForumsAction;
-import org.eclipse.che.ide.actions.RedirectToHelpAction;
 import org.eclipse.che.ide.actions.RedoAction;
-import org.eclipse.che.ide.actions.RefreshProjectTreeAction;
 import org.eclipse.che.ide.actions.RenameItemAction;
 import org.eclipse.che.ide.actions.SaveAction;
 import org.eclipse.che.ide.actions.SaveAllAction;
 import org.eclipse.che.ide.actions.SelectNodeAction;
-import org.eclipse.che.ide.actions.ShowAboutAction;
 import org.eclipse.che.ide.actions.ShowHiddenFilesAction;
 import org.eclipse.che.ide.actions.ShowPreferencesAction;
 import org.eclipse.che.ide.actions.UndoAction;
@@ -109,18 +107,6 @@ public class StandardComponentInitializer {
     private ShowPreferencesAction showPreferencesAction;
 
     @Inject
-    private ShowAboutAction showAboutAction;
-
-    @Inject
-    private RedirectToHelpAction redirectToHelpAction;
-
-    @Inject
-    private RedirectToForumsAction redirectToForumsAction;
-
-    @Inject
-    private RedirectToFeedbackAction redirectToFeedbackAction;
-
-    @Inject
     private FindActionAction findActionAction;
 
     @Inject
@@ -132,6 +118,15 @@ public class StandardComponentInitializer {
     @Inject
     @MainToolbar
     private ToolbarPresenter toolbarPresenter;
+
+    @Inject
+    private CutAction cutAction;
+
+    @Inject
+    private CopyAction copyAction;
+
+    @Inject
+    private PasteAction pasteAction;
 
     @Inject
     private DeleteItemAction deleteItemAction;
@@ -207,9 +202,6 @@ public class StandardComponentInitializer {
 
     @Inject
     private ProjectConfigurationAction projectConfigurationAction;
-
-    @Inject
-    private RefreshProjectTreeAction refreshProjectTreeAction;
 
     @Inject
     private ExpandEditorAction expandEditorAction;
@@ -350,15 +342,20 @@ public class StandardComponentInitializer {
         fileGroup.add(openProjectAction);
         fileGroup.add(closeProjectAction);
         fileGroup.add(projectConfigurationAction);
+        fileGroup.addAction(createModuleAction);
         fileGroup.add(uploadFileAction);
         fileGroup.add(uploadFolderFromZipAction);
         fileGroup.add(downloadProjectAsZipAction);
         fileGroup.add(navigateToFileAction);
         fileGroup.add(showHiddenFilesAction);
+
+        fileGroup.add(cutAction);
+        fileGroup.add(copyAction);
+        fileGroup.add(pasteAction);
+
         fileGroup.add(renameItemAction);
         fileGroup.add(deleteItemAction);
         fileGroup.addSeparator();
-        fileGroup.addAction(createModuleAction);
         fileGroup.add(saveGroup);
 
         // Compose Code menu
@@ -378,30 +375,24 @@ public class StandardComponentInitializer {
         // Compose Help menu
         DefaultActionGroup helpGroup = (DefaultActionGroup)actionManager.getAction(IdeActions.GROUP_HELP);
         actionManager.registerAction("findActionAction", findActionAction);
-        actionManager.registerAction("showAbout", showAboutAction);
-        actionManager.registerAction("redirectToHelp", redirectToHelpAction);
-        actionManager.registerAction("redirectToForums", redirectToForumsAction);
-        actionManager.registerAction("redirectToFeedback", redirectToFeedbackAction);
 
         helpGroup.add(findActionAction);
-        helpGroup.add(showAboutAction);
         helpGroup.addSeparator();
-        helpGroup.add(redirectToHelpAction);
-        helpGroup.addSeparator();
-        helpGroup.add(redirectToForumsAction);
-        helpGroup.add(redirectToFeedbackAction);
 
         // Compose main context menu
         DefaultActionGroup resourceOperation = new DefaultActionGroup(actionManager);
         actionManager.registerAction("resourceOperation", resourceOperation);
         resourceOperation.addSeparator();
         resourceOperation.add(openSelectedFileAction);
+
+        resourceOperation.add(cutAction);
+        resourceOperation.add(copyAction);
+        resourceOperation.add(pasteAction);
+
         resourceOperation.add(renameItemAction);
         resourceOperation.add(deleteItemAction);
         resourceOperation.addSeparator();
         resourceOperation.add(downloadItemAction);
-        resourceOperation.addSeparator();
-        resourceOperation.add(refreshProjectTreeAction);
         resourceOperation.addSeparator();
         resourceOperation.add(createModuleAction);
 
@@ -426,17 +417,23 @@ public class StandardComponentInitializer {
         actionManager.registerAction("openProject", openProjectAction);
         actionManager.registerAction("closeProject", closeProjectAction);
         actionManager.registerAction("openSelectedFile", openSelectedFileAction);
+
+        actionManager.registerAction("cut", cutAction);
+        actionManager.registerAction("copy", copyAction);
+        actionManager.registerAction("paste", pasteAction);
+
         actionManager.registerAction("renameResource", renameItemAction);
         actionManager.registerAction("deleteItem", deleteItemAction);
-        actionManager.registerAction("refreshProjectTreeAction", refreshProjectTreeAction);
 
         actionManager.registerAction("findReplace", findReplaceAction);
         actionManager.registerAction("openFile", openFileAction);
         actionManager.registerAction("openNode", openNodeAction);
         actionManager.registerAction("selectNode", selectNodeAction);
 
-        changeResourceGroup.add(refreshProjectTreeAction);
         changeResourceGroup.add(closeProjectAction);
+        changeResourceGroup.add(cutAction);
+        changeResourceGroup.add(copyAction);
+        changeResourceGroup.add(pasteAction);
         changeResourceGroup.add(deleteItemAction);
         changeResourceGroup.addSeparator();
 
@@ -456,5 +453,11 @@ public class StandardComponentInitializer {
         // Define hot-keys
         keyBinding.getGlobal().addKey(new KeyBuilder().action().alt().charCode('n').build(), "navigateToFile");
         keyBinding.getGlobal().addKey(new KeyBuilder().action().charCode('A').build(), "findActionAction");
+        keyBinding.getGlobal().addKey(new KeyBuilder().alt().charCode('L').build(), "format");
+
+        keyBinding.getGlobal().addKey(new KeyBuilder().action().charCode('c').build(), "copy");
+        keyBinding.getGlobal().addKey(new KeyBuilder().action().charCode('x').build(), "cut");
+        keyBinding.getGlobal().addKey(new KeyBuilder().action().charCode('v').build(), "paste");
     }
+
 }

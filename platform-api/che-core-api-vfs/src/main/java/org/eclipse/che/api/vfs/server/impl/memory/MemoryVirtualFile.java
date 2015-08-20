@@ -40,10 +40,11 @@ import org.eclipse.che.api.vfs.shared.dto.Principal;
 import org.eclipse.che.api.vfs.shared.dto.Property;
 import org.eclipse.che.api.vfs.shared.dto.VirtualFileSystemInfo;
 import org.eclipse.che.api.vfs.shared.dto.VirtualFileSystemInfo.BasicPermissions;
-
 import org.eclipse.che.commons.lang.NameGenerator;
 import org.eclipse.che.commons.lang.Pair;
+import org.eclipse.che.commons.lang.ws.rs.ExtMediaType;
 import org.eclipse.che.dto.server.DtoFactory;
+
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import com.google.common.io.ByteSource;
@@ -626,8 +627,17 @@ public class MemoryVirtualFile implements VirtualFile {
 
     @Override
     public VirtualFile copyTo(VirtualFile parent) throws ForbiddenException, ConflictException, ServerException {
+        return copyTo(parent, null, false);
+    }
+
+    @Override
+    public VirtualFile copyTo(VirtualFile parent, String name, boolean overWrite) throws ForbiddenException, ConflictException, ServerException {
         checkExist();
-        ((MemoryVirtualFile)parent).checkExist();
+        MemoryVirtualFile theParent = ((MemoryVirtualFile) parent);
+        theParent.checkExist();
+        // setting copy name accordingly
+        String nameToCopy = ("".equals(String.valueOf(name).trim()) || null == name) ? this.getName() : name;
+
         if (isRoot()) {
             throw new ServerException("Unable copy root folder. ");
         }
@@ -635,12 +645,13 @@ public class MemoryVirtualFile implements VirtualFile {
             throw new ForbiddenException(String.format("Unable create copy of '%s'. Item '%s' specified as parent is not a folder.",
                                                        getPath(), parent.getPath()));
         }
-        if (!((MemoryVirtualFile)parent).hasPermission(BasicPermissions.WRITE.value(), true)) {
+        if (!theParent.hasPermission(BasicPermissions.WRITE.value(), true)) {
             throw new ForbiddenException(String.format("Unable copy item '%s' to '%s'. Operation not permitted. ",
                                                        getPath(), parent.getPath()));
         }
-        VirtualFile copy = doCopy(parent);
-        mountPoint.putItem((MemoryVirtualFile)copy);
+
+        VirtualFile copy = doCopy(parent, nameToCopy, overWrite);
+        mountPoint.putItem((MemoryVirtualFile) copy);
         SearcherProvider searcherProvider = mountPoint.getSearcherProvider();
         if (searcherProvider != null) {
             try {
@@ -654,11 +665,22 @@ public class MemoryVirtualFile implements VirtualFile {
     }
 
     private VirtualFile doCopy(VirtualFile parent) throws ConflictException {
+        return doCopy(parent, null, false);
+    }
+
+    private VirtualFile doCopy(VirtualFile parent, String targetName, boolean overWrite) throws ConflictException {
+
+        String nameToCopy = ("".equals(String.valueOf(targetName).trim()) || null == targetName) ? this.getName() : targetName;
+
+        if (overWrite) {
+            doOverWrite(parent, targetName);
+        }
+
         VirtualFile virtualFile;
         if (isFile()) {
-            virtualFile = newFile((MemoryVirtualFile)parent, name, Arrays.copyOf(content, content.length), getMediaType());
+            virtualFile = newFile((MemoryVirtualFile) parent, nameToCopy, Arrays.copyOf(content, content.length), getMediaType());
         } else {
-            virtualFile = newFolder((MemoryVirtualFile)parent, name);
+            virtualFile = newFolder((MemoryVirtualFile) parent, nameToCopy);
             LazyIterator<VirtualFile> children = getChildren(VirtualFileFilter.ALL);
             while (children.hasNext()) {
                 ((MemoryVirtualFile)children.next()).doCopy(virtualFile);
@@ -678,11 +700,40 @@ public class MemoryVirtualFile implements VirtualFile {
         return virtualFile;
     }
 
+    private void doOverWrite(VirtualFile theParent, String targetName) {
+        try {
+            VirtualFile overWritenVirtualFile = theParent.getChild(targetName);
+            boolean targetExists = (null != overWritenVirtualFile);
+            /**
+             * if a VirtualFile with same target name already exists under new
+             * parent we need to determent if we should overwrite it or not.
+             */
+            if (targetExists) { // name collision
+                String deleteToken = null;
+                if (isFile()) {
+                    deleteToken = overWritenVirtualFile.lock(0);
+                }
+                overWritenVirtualFile.delete(deleteToken);
+            }
+        } catch (ForbiddenException | ServerException | ConflictException ex) {
+            LOG.error(ex.getMessage());
+        }
+    }
+
     @Override
     public VirtualFile moveTo(VirtualFile parent, final String lockToken) throws ConflictException, ForbiddenException, ServerException {
+        return moveTo(parent, null, false, lockToken);
+    }
+
+    @Override
+    public VirtualFile moveTo(VirtualFile parent, String newName, boolean overWrite, String lockToken) throws ForbiddenException, ConflictException, ServerException {
         checkExist();
         ((MemoryVirtualFile)parent).checkExist();
         boolean isFile = isFile();
+
+        // the name set to destination after moving
+        String destinationName = ("".equals(String.valueOf(newName).trim()) || null == newName) ? this.getName() : newName;
+
         if (isRoot()) {
             throw new ForbiddenException("Unable move root folder. ");
         }
@@ -741,11 +792,34 @@ public class MemoryVirtualFile implements VirtualFile {
                 throw new ForbiddenException(String.format("Unable move item %s. Item is locked. ", myPath));
             }
         }
-        if (!((MemoryVirtualFile)parent).addChild(this)) {
+
+        //====-overwriting-====
+        if (overWrite) {
+            doOverWrite(parent, destinationName);
+        }
+        //=====================
+
+        /**
+         * if newName was sent NOT null NOR empty String, then request was
+         * intended to change the VirtualFile name after moving
+         */
+        if (!("".equals(String.valueOf(newName).trim()) || null == newName)) {
+            if (((MemoryVirtualFile) parent).children.containsKey(destinationName)) {
+                throw new ConflictException(String.format("Item '%s' already exists. ", (parent.getPath() + '/' + destinationName)));
+            }
+            this.parent.children.remove(getName());
+            this.parent = (MemoryVirtualFile) parent;
+            this.parent.children.put(destinationName, this);
+            this.name = destinationName;
+        } else { // default behavior is to move with current name
+            if (!((MemoryVirtualFile) parent).addChild(this)) {
             throw new ConflictException(String.format("Item '%s' already exists. ", (parent.getPath() + '/' + name)));
         }
         this.parent.children.remove(getName());
-        this.parent = (MemoryVirtualFile)parent;
+            this.parent = (MemoryVirtualFile) parent;
+        }
+        // =======================
+
         SearcherProvider searcherProvider = mountPoint.getSearcherProvider();
         if (searcherProvider != null) {
             try {
@@ -964,7 +1038,7 @@ public class MemoryVirtualFile implements VirtualFile {
             throw new ServerException(e.getMessage(), e);
         }
         final byte[] zipContent = out.toByteArray();
-        return new ContentStream(getName() + ".zip", new ByteArrayInputStream(zipContent), "application/zip", zipContent.length,
+        return new ContentStream(getName() + ".zip", new ByteArrayInputStream(zipContent), ExtMediaType.APPLICATION_ZIP, zipContent.length,
                                  new Date());
     }
 

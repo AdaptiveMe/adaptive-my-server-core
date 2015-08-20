@@ -23,7 +23,6 @@ import org.eclipse.che.api.core.rest.shared.dto.Link;
 import org.eclipse.che.api.factory.dto.Author;
 import org.eclipse.che.api.factory.dto.Factory;
 import org.eclipse.che.api.factory.dto.FactoryV2_1;
-import org.eclipse.che.api.factory.dto.Workspace;
 import org.eclipse.che.api.project.server.ProjectConfig;
 import org.eclipse.che.api.project.server.ProjectJson;
 import org.eclipse.che.api.project.server.DtoConverter;
@@ -62,6 +61,7 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
+import javax.ws.rs.HttpMethod;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
@@ -69,10 +69,12 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -283,7 +285,7 @@ public class FactoryService extends Service {
      * @throws NotFoundException
      *         when factory with given id doesn't exist
      */
-    @ApiOperation(value = "Removes Factory information by its ID",
+    @ApiOperation(value = "Removes Factory by its ID",
                   notes = "Removes factory based on the Factory ID which is passed in a path parameter")
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "OK"),
@@ -418,7 +420,7 @@ public class FactoryService extends Service {
         List<Factory> factories = factoryStore.findByAttribute(pairs.toArray(new Pair[pairs.size()]));
         for (Factory factory : factories) {
             result.add(DtoFactory.getInstance().createDto(Link.class)
-                                 .withMethod("GET")
+                                 .withMethod(HttpMethod.GET)
                                  .withRel("self")
                                  .withProduces(MediaType.APPLICATION_JSON)
                                  .withConsumes(null)
@@ -559,10 +561,20 @@ public class FactoryService extends Service {
      * @throws org.eclipse.che.api.core.ApiException
      *         - {@link org.eclipse.che.api.core.ConflictException} when project is not under source control.
      */
+    @ApiOperation(value = "Get project Factory parameters",
+                  notes = "This call returns a Factory.json that is used to create a Factory. " +
+                          "To be able to get project's configuration json file, it should be under Git")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "OK"),
+            @ApiResponse(code = 404, message = "Workspace or project not found"),
+            @ApiResponse(code = 500, message = "Internal Server Error")})
     @GET
     @Path("/{ws-id}/{path:.*}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response getFactoryJson(@PathParam("ws-id") String workspace, @PathParam("path") String path) throws ApiException {
+    public Response getFactoryJson(@ApiParam(value = "Workspace ID", required = true)
+                                   @PathParam("ws-id") String workspace,
+                                   @ApiParam(value = "Project name", required = true)
+                                   @PathParam("path") String path) throws ApiException {
         final Project project = projectManager.getProject(workspace, path);
 
         if (project == null) {
@@ -576,7 +588,7 @@ public class FactoryService extends Service {
             Map<String, AttributeValue> attributes = projectDescription.getAttributes();
             if (attributes.containsKey("vcs.provider.name") && attributes.get("vcs.provider.name").getList().contains("git")) {
                 final Link importSourceLink = dtoFactory.createDto(Link.class)
-                                                        .withMethod("GET")
+                                                        .withMethod(HttpMethod.GET)
                                                         .withHref(UriBuilder.fromUri(baseApiUrl)
                                                                             .path("git")
                                                                             .path(workspace)
@@ -615,7 +627,7 @@ public class FactoryService extends Service {
                                      .withProject(newProject)
                                      .withSource(dtoFactory.createDto(Source.class).withProject(source))
                                      .withV("2.1"), MediaType.APPLICATION_JSON)
-                       .header("Content-Disposition", "attachment; filename=" + path + ".json")
+                       .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + path + ".json")
                        .build();
     }
 
@@ -634,18 +646,8 @@ public class FactoryService extends Service {
             }
         }
 
-        if (factory.getWorkspace() ==  null) {
-            factory.setWorkspace(DtoFactory.getInstance().createDto(Workspace.class).withType("temp").withLocation("owner"));
-        } else {
-            if (isNullOrEmpty(factory.getWorkspace().getType())) {
-                factory.getWorkspace().setType("temp");
-            }
-            if (isNullOrEmpty(factory.getWorkspace().getLocation())) {
-                factory.getWorkspace().setLocation("owner");
-            }
-        }
-
-        if (factory.getWorkspace().getLocation().equals("owner") && factory.getCreator().getAccountId() == null) {
+        if (factory.getWorkspace() != null && "owner".equals(factory.getWorkspace().getLocation()) &&
+            factory.getCreator().getAccountId() == null) {
             List<Member> ownedAccounts = FluentIterable.from(accountDao.getByMember(currentUser.getId())).filter(new Predicate<Member>() {
                 @Override
                 public boolean apply(Member input) {

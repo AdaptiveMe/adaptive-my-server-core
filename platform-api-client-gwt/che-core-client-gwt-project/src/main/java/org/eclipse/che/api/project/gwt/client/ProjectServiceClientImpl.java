@@ -13,9 +13,11 @@ package org.eclipse.che.api.project.gwt.client;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 
+import org.eclipse.che.api.project.shared.dto.CopyOptions;
 import org.eclipse.che.api.project.shared.dto.ImportProject;
 import org.eclipse.che.api.project.shared.dto.ImportResponse;
 import org.eclipse.che.api.project.shared.dto.ItemReference;
+import org.eclipse.che.api.project.shared.dto.MoveOptions;
 import org.eclipse.che.api.project.shared.dto.NewProject;
 import org.eclipse.che.api.project.shared.dto.ProjectDescriptor;
 import org.eclipse.che.api.project.shared.dto.ProjectReference;
@@ -23,7 +25,7 @@ import org.eclipse.che.api.project.shared.dto.ProjectUpdate;
 import org.eclipse.che.api.project.shared.dto.RunnerEnvironmentTree;
 import org.eclipse.che.api.project.shared.dto.TreeElement;
 import org.eclipse.che.ide.MimeType;
-import org.eclipse.che.ide.collections.Array;
+import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.AsyncRequestFactory;
 import org.eclipse.che.ide.rest.AsyncRequestLoader;
@@ -63,14 +65,18 @@ public class ProjectServiceClientImpl implements ProjectServiceClient {
     private final String              ESTIMATE;
     private final AsyncRequestLoader  loader;
     private final AsyncRequestFactory asyncRequestFactory;
+    private final DtoFactory          dtoFactory;
 
     @Inject
     protected ProjectServiceClientImpl(@RestContext String restContext,
                                        @Named("workspaceId") String workspaceId,
                                        AsyncRequestLoader loader,
-                                       AsyncRequestFactory asyncRequestFactory) {
+                                       AsyncRequestFactory asyncRequestFactory,
+                                       DtoFactory dtoFactory) {
         this.loader = loader;
         this.asyncRequestFactory = asyncRequestFactory;
+        this.dtoFactory = dtoFactory;
+
         PROJECT = restContext + "/project/" + workspaceId;
         PROJECTS_IN_SPECIFIC_WORKSPACE = restContext + "/project";
         MODULES = restContext + "/project/" + workspaceId + "/modules";
@@ -91,7 +97,7 @@ public class ProjectServiceClientImpl implements ProjectServiceClient {
     }
 
     @Override
-    public void getProjects(AsyncRequestCallback<Array<ProjectReference>> callback) {
+    public void getProjects(AsyncRequestCallback<List<ProjectReference>> callback) {
         final String requestUrl = PROJECT;
         asyncRequestFactory.createGetRequest(requestUrl)
                            .header(ACCEPT, MimeType.APPLICATION_JSON)
@@ -100,7 +106,7 @@ public class ProjectServiceClientImpl implements ProjectServiceClient {
     }
 
     @Override
-    public void getProjectsInSpecificWorkspace(String wsId, AsyncRequestCallback<Array<ProjectReference>> callback) {
+    public void getProjectsInSpecificWorkspace(String wsId, AsyncRequestCallback<List<ProjectReference>> callback) {
         final String requestUrl = PROJECTS_IN_SPECIFIC_WORKSPACE + "/" + wsId;
         asyncRequestFactory.createGetRequest(requestUrl)
                            .header(ACCEPT, MimeType.APPLICATION_JSON)
@@ -159,7 +165,7 @@ public class ProjectServiceClientImpl implements ProjectServiceClient {
     }
 
     @Override
-    public void getModules(String path, AsyncRequestCallback<Array<ProjectDescriptor>> callback) {
+    public void getModules(String path, AsyncRequestCallback<List<ProjectDescriptor>> callback) {
         final String requestUrl = MODULES + normalizePath(path);
         asyncRequestFactory.createGetRequest(requestUrl)
                            .header(ACCEPT, MimeType.APPLICATION_JSON)
@@ -264,17 +270,27 @@ public class ProjectServiceClientImpl implements ProjectServiceClient {
     }
 
     @Override
-    public void copy(String path, String newParentPath, AsyncRequestCallback<Void> callback) {
-        final String requestUrl = COPY + normalizePath(path) + "?to=" + newParentPath;
-        asyncRequestFactory.createPostRequest(requestUrl, null)
-                           .loader(loader, "Copying item...")
-                           .send(callback);
+    public void copy(String path, String newParentPath, String newName, AsyncRequestCallback<Void> callback) {
+        final String requestUrl = COPY + normalizePath(path) + "?to=" + normalizePath(newParentPath);
+
+        final CopyOptions copyOptions = dtoFactory.createDto(CopyOptions.class);
+        copyOptions.setName(newName);
+        copyOptions.setOverWrite(false);
+
+        asyncRequestFactory.createPostRequest(requestUrl, copyOptions)
+                .loader(loader, "Copying item...")
+                .send(callback);
     }
 
     @Override
-    public void move(String path, String newParentPath, AsyncRequestCallback<Void> callback) {
-        final String requestUrl = MOVE + normalizePath(path) + "?to=" + newParentPath;
-        asyncRequestFactory.createPostRequest(requestUrl, null)
+    public void move(String path, String newParentPath, String newName, AsyncRequestCallback<Void> callback) {
+        final String requestUrl = MOVE + normalizePath(path) + "?to=" + normalizePath(newParentPath);
+
+        final MoveOptions moveOptions = dtoFactory.createDto(MoveOptions.class);
+        moveOptions.setName(newName);
+        moveOptions.setOverWrite(false);
+
+        asyncRequestFactory.createPostRequest(requestUrl, moveOptions)
                            .loader(loader, "Moving item...")
                            .send(callback);
     }
@@ -298,29 +314,29 @@ public class ProjectServiceClientImpl implements ProjectServiceClient {
             requestUrl.append("?force=true");
         }
         asyncRequestFactory.createPostRequest(requestUrl.toString(), importProject, true)
-                           .header(ACCEPT, MimeType.APPLICATION_JSON)
-                           .loader(loader, "Importing sources into project...")
+                .header(ACCEPT, MimeType.APPLICATION_JSON)
+                .loader(loader, "Importing sources into project...")
                            .send(callback);
     }
 
     @Override
-    public void getChildren(String path, AsyncRequestCallback<Array<ItemReference>> callback) {
+    public void getChildren(String path, AsyncRequestCallback<List<ItemReference>> callback) {
         final String requestUrl = GET_CHILDREN + normalizePath(path);
         asyncRequestFactory.createGetRequest(requestUrl)
-                           .header(ACCEPT, MimeType.APPLICATION_JSON)
-                           .send(callback);
+                .header(ACCEPT, MimeType.APPLICATION_JSON)
+                .send(callback);
     }
 
     @Override
     public void getTree(String path, int depth, AsyncRequestCallback<TreeElement> callback) {
         final String requestUrl = GET_TREE + normalizePath(path) + "?depth=" + depth;
         asyncRequestFactory.createGetRequest(requestUrl)
-                           .header(ACCEPT, MimeType.APPLICATION_JSON)
+                .header(ACCEPT, MimeType.APPLICATION_JSON)
                            .send(callback);
     }
 
     @Override
-    public void search(QueryExpression expression, AsyncRequestCallback<Array<ItemReference>> callback) {
+    public void search(QueryExpression expression, AsyncRequestCallback<List<ItemReference>> callback) {
         final String requestUrl = SEARCH + normalizePath(expression.getPath());
 
         StringBuilder queryParameters = new StringBuilder();
@@ -341,7 +357,7 @@ public class ProjectServiceClientImpl implements ProjectServiceClient {
         }
 
         asyncRequestFactory.createGetRequest(requestUrl + queryParameters.toString().replaceFirst("&", "?"))
-                           .header(ACCEPT, MimeType.APPLICATION_JSON)
+                .header(ACCEPT, MimeType.APPLICATION_JSON)
                            .send(callback);
     }
 

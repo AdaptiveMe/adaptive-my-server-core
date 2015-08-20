@@ -33,13 +33,12 @@ import org.eclipse.che.api.vfs.shared.dto.Variable;
 import org.eclipse.che.api.vfs.shared.dto.VirtualFileSystemInfo;
 import org.eclipse.che.api.vfs.shared.dto.VirtualFileSystemInfo.ACLCapability;
 import org.eclipse.che.api.vfs.shared.dto.VirtualFileSystemInfo.BasicPermissions;
-
 import org.eclipse.che.commons.lang.Deserializer;
 import org.eclipse.che.commons.lang.IoUtil;
 import org.eclipse.che.commons.lang.NameGenerator;
 import org.eclipse.che.commons.lang.Pair;
+import org.eclipse.che.commons.lang.ws.rs.ExtMediaType;
 import org.eclipse.che.dto.server.DtoFactory;
-
 import org.apache.commons.fileupload.FileItem;
 import org.everrest.core.impl.provider.multipart.OutputItem;
 
@@ -54,6 +53,7 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -110,14 +110,17 @@ public abstract class VirtualFileSystemImpl implements VirtualFileSystem {
 
     @Path("copy/{id}")
     @Override
-    public Item copy(@PathParam("id") String id, @QueryParam("parentId") String parentId)
+    public Item copy(@PathParam("id") String id,
+                     @QueryParam("parentId") String parentId,
+                     @QueryParam("name") String newName)
             throws NotFoundException, ForbiddenException, ConflictException, ServerException {
-        final VirtualFile virtualFileCopy = mountPoint.getVirtualFileById(id).copyTo(mountPoint.getVirtualFileById(parentId));
+        final VirtualFile virtualFileCopy = mountPoint.getVirtualFileById(id).copyTo(mountPoint.getVirtualFileById(parentId), newName, false);
         return fromVirtualFile(virtualFileCopy, false, PropertyFilter.ALL_FILTER);
     }
 
     @Path("clone")
     @Override
+    @Deprecated
     public Item clone(@QueryParam("srcPath") String srcPath,
                       @QueryParam("srcVfsId") String srcVfsId,
                       @QueryParam("parentPath") String parentPath,
@@ -159,7 +162,7 @@ public abstract class VirtualFileSystemImpl implements VirtualFileSystem {
     @Override
     public File createFile(@PathParam("parentId") String parentId,
                            @QueryParam("name") String name,
-                           @HeaderParam("Content-Type") MediaType mediaType,
+                           @HeaderParam(HttpHeaders.CONTENT_TYPE) MediaType mediaType,
                            InputStream content) throws NotFoundException, ForbiddenException, ConflictException, ServerException {
         final VirtualFile parent = mountPoint.getVirtualFileById(parentId);
         // Have issue with client side. Always have Content-type header is set even if client doesn't set it.
@@ -428,10 +431,11 @@ public abstract class VirtualFileSystemImpl implements VirtualFileSystem {
     @Override
     public Item move(@PathParam("id") String id,
                      @QueryParam("parentId") String parentId,
+                     @QueryParam("name") String newName,
                      @QueryParam("lockToken") String lockToken)
             throws NotFoundException, ForbiddenException, ConflictException, ServerException {
-        return fromVirtualFile(mountPoint.getVirtualFileById(id).moveTo(mountPoint.getVirtualFileById(parentId), lockToken),
-                               false, PropertyFilter.ALL_FILTER);
+        return fromVirtualFile(mountPoint.getVirtualFileById(id).moveTo(mountPoint.getVirtualFileById(parentId), newName, false, lockToken),
+                false, PropertyFilter.ALL_FILTER);
     }
 
     @Path("rename/{id}")
@@ -603,7 +607,7 @@ public abstract class VirtualFileSystemImpl implements VirtualFileSystem {
     @Override
     public void updateContent(
             @PathParam("id") String id,
-            @DefaultValue(MediaType.APPLICATION_OCTET_STREAM) @HeaderParam("Content-Type") MediaType mediaType,
+            @DefaultValue(MediaType.APPLICATION_OCTET_STREAM) @HeaderParam(HttpHeaders.CONTENT_TYPE) MediaType mediaType,
             InputStream newContent,
             @QueryParam("lockToken") String lockToken) throws NotFoundException, ForbiddenException, ServerException {
         // Have issue with client side. Always have Content-type header is set even if client doesn't set it.
@@ -659,7 +663,7 @@ public abstract class VirtualFileSystemImpl implements VirtualFileSystem {
         }
         final List<OutputItem> multipart = new LinkedList<>();
         // String name, Object entity, MediaType mediaType, String fileName
-        final OutputItem updates = OutputItem.create("updates", zip.getStream(), MediaType.valueOf("application/zip"), zip.getFileName());
+        final OutputItem updates = OutputItem.create("updates", zip.getStream(), ExtMediaType.APPLICATION_ZIP_TYPE, zip.getFileName());
         updates.getHeaders().putSingle(HttpHeaders.CONTENT_LENGTH, Long.toString(zip.getLength()));
         multipart.add(updates);
 
@@ -687,7 +691,7 @@ public abstract class VirtualFileSystemImpl implements VirtualFileSystem {
                 .ok(zip.getStream(), zip.getMimeType())
                 .lastModified(zip.getLastModificationDate())
                 .header(HttpHeaders.CONTENT_LENGTH, Long.toString(zip.getLength()))
-                .header("Content-Disposition", "attachment; filename=\"" + zip.getFileName() + '"');
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zip.getFileName() + '"');
         if (!deleted.isEmpty()) {
             final StringBuilder buff = new StringBuilder();
             for (String str : deleted) {
@@ -826,7 +830,7 @@ public abstract class VirtualFileSystemImpl implements VirtualFileSystem {
                 .ok(content.getStream(), content.getMimeType())
                 .lastModified(content.getLastModificationDate())
                 .header(HttpHeaders.CONTENT_LENGTH, Long.toString(content.getLength()))
-                .header("Content-Disposition", "attachment; filename=\"" + content.getFileName() + '"')
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + content.getFileName() + '"')
                 .build();
     }
 
@@ -906,7 +910,7 @@ public abstract class VirtualFileSystemImpl implements VirtualFileSystem {
                 .ok(zip.getStream(), zip.getMimeType()) //
                 .lastModified(zip.getLastModificationDate()) //
                 .header(HttpHeaders.CONTENT_LENGTH, Long.toString(zip.getLength())) //
-                .header("Content-Disposition", "attachment; filename=\"" + zip.getFileName() + '"') //
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zip.getFileName() + '"') //
                 .build();
     }
 

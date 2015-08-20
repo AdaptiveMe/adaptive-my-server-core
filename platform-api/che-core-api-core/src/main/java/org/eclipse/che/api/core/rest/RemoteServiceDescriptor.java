@@ -10,6 +10,12 @@
  *******************************************************************************/
 package org.eclipse.che.api.core.rest;
 
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.eclipse.che.api.core.ConflictException;
 import org.eclipse.che.api.core.ForbiddenException;
 import org.eclipse.che.api.core.NotFoundException;
@@ -18,13 +24,8 @@ import org.eclipse.che.api.core.UnauthorizedException;
 import org.eclipse.che.api.core.rest.shared.dto.Link;
 import org.eclipse.che.api.core.rest.shared.dto.ServiceDescriptor;
 import org.eclipse.che.dto.server.DtoFactory;
-
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Provides basic functionality to access remote {@link Service Service}. Basically provides next information about {@code Service}:
@@ -40,6 +41,7 @@ import java.util.List;
  * @see #getLinks()
  */
 public class RemoteServiceDescriptor {
+    private static final Logger LOG = LoggerFactory.getLogger(RemoteServiceDescriptor.class);
 
     protected final String baseUrl;
     private final   URL    baseUrlURL;
@@ -109,19 +111,12 @@ public class RemoteServiceDescriptor {
 
     /** Checks service availability. */
     public boolean isAvailable() {
-        HttpURLConnection conn = null;
+        LOG.debug("Testing availability {}", baseUrl);
         try {
-            conn = (HttpURLConnection)baseUrlURL.openConnection();
-            conn.setConnectTimeout(3 * 1000);
-            conn.setReadTimeout(3 * 1000);
-            conn.setRequestMethod("OPTIONS");
-            return 200 == conn.getResponseCode();
-        } catch (IOException e) {
+            return (HttpJsonHelper.options(getServiceDescriptorClass(), baseUrl) != null);
+        } catch (Exception e) {
+            LOG.warn(e.getLocalizedMessage());
             return false;
-        } finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
         }
     }
 }

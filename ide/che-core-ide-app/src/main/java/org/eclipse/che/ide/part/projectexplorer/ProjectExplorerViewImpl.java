@@ -10,6 +10,8 @@
  *******************************************************************************/
 package org.eclipse.che.ide.part.projectexplorer;
 
+import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ClickHandler;
 import elemental.events.KeyboardEvent;
 import elemental.events.MouseEvent;
 
@@ -18,8 +20,6 @@ import org.eclipse.che.ide.Resources;
 import org.eclipse.che.ide.api.parts.base.BaseView;
 import org.eclipse.che.ide.api.project.tree.AbstractTreeNode;
 import org.eclipse.che.ide.api.project.tree.TreeNode;
-import org.eclipse.che.ide.collections.Array;
-import org.eclipse.che.ide.collections.Collections;
 import org.eclipse.che.ide.ui.tree.Tree;
 import org.eclipse.che.ide.ui.tree.TreeNodeElement;
 import org.eclipse.che.ide.util.input.SignalEvent;
@@ -33,6 +33,8 @@ import com.google.inject.Singleton;
 import org.vectomatic.dom.svg.ui.SVGImage;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Project Explorer view.
@@ -159,11 +161,10 @@ public class ProjectExplorerViewImpl extends BaseView<ProjectExplorerView.Action
     }
 
     @Override
-    public Array<TreeNode<?>> getOpenedTreeNodes() {
-        Array<TreeNodeElement<TreeNode<?>>> treeNodes = tree.getVisibleTreeNodes();
-        Array<TreeNode<?>> openedNodes = Collections.createArray();
-        for (int i = 0; i < treeNodes.size(); i++) {
-            TreeNodeElement<TreeNode<?>> treeNodeElement = treeNodes.get(i);
+    public List<TreeNode<?>> getOpenedTreeNodes() {
+        List<TreeNodeElement<TreeNode<?>>> treeNodes = tree.getVisibleTreeNodes();
+        List<TreeNode<?>> openedNodes = new ArrayList<>();
+        for (TreeNodeElement<TreeNode<?>> treeNodeElement : treeNodes) {
             if (treeNodeElement.isOpen()) {
                 openedNodes.add(treeNodeElement.getData());
             }
@@ -173,10 +174,10 @@ public class ProjectExplorerViewImpl extends BaseView<ProjectExplorerView.Action
 
     /** {@inheritDoc} */
     @Override
-    public void setRootNodes(@Nonnull final Array<TreeNode<?>> rootNodes) {
+    public void setRootNodes(@Nonnull final List<TreeNode<?>> rootNodes) {
         // provided rootNodes should be set as child nodes for rootNode
         rootNode.setChildren(rootNodes);
-        for (TreeNode<?> treeNode : rootNodes.asIterable()) {
+        for (TreeNode<?> treeNode : rootNodes) {
             treeNode.setParent(rootNode);
         }
 
@@ -203,13 +204,13 @@ public class ProjectExplorerViewImpl extends BaseView<ProjectExplorerView.Action
     @Override
     public void updateNode(@Nonnull TreeNode<?> oldNode, @Nonnull TreeNode<?> newNode) {
         // get currently selected node
-        final Array<TreeNode<?>> selectedNodes = tree.getSelectionModel().getSelectedNodes();
+        final List<TreeNode<?>> selectedNodes = tree.getSelectionModel().getSelectedNodes();
         TreeNode<?> selectedNode = null;
         if (!selectedNodes.isEmpty()) {
             selectedNode = selectedNodes.get(0);
         }
 
-        Array<Array<String>> pathsToExpand = tree.replaceSubtree(oldNode, newNode, false);
+        List<List<String>> pathsToExpand = tree.replaceSubtree(oldNode, newNode, false);
         tree.expandPaths(pathsToExpand, false);
 
         // restore selected node
@@ -239,19 +240,36 @@ public class ProjectExplorerViewImpl extends BaseView<ProjectExplorerView.Action
             toolBar.addSouth(projectHeader, 28);
             setToolbarHeight(50);
         }
+
         projectHeader.clear();
 
         FlowPanel delimiter = new FlowPanel();
         delimiter.setStyleName(resources.partStackCss().idePartStackToolbarSeparator());
         projectHeader.add(delimiter);
 
-        SVGImage projectVisibilityImage = new SVGImage("private".equals(project.getVisibility()) ? resources.privateProject()
-                : resources.publicProject());
-        projectVisibilityImage.getElement().setAttribute("class", resources.partStackCss().idePartStackToolbarBottomIcon());
-        projectHeader.add(projectVisibilityImage);
+        SVGImage icon = new SVGImage("private".equals(project.getVisibility()) ?
+                resources.privateProject() : resources.publicProject());
+        icon.getElement().setAttribute("class", resources.partStackCss().idePartStackToolbarBottomIcon());
+        projectHeader.add(icon);
 
         InlineLabel projectTitle = new InlineLabel(project.getName());
         projectHeader.add(projectTitle);
+
+        FlowPanel refreshButton = new FlowPanel();
+        refreshButton.add(new SVGImage(resources.refresh()));
+        refreshButton.setStyleName(resources.partStackCss().idePartStackToolbarBottomButton());
+        refreshButton.addStyleName(resources.partStackCss().idePartStackToolbarBottomButtonRight());
+        refreshButton.ensureDebugId("projectExplorer-button-refreshTree");
+        projectHeader.add(refreshButton);
+
+        refreshButton.addDomHandler(new ClickHandler() {
+            @Override
+            public void onClick(ClickEvent event) {
+                if (delegate != null) {
+                    delegate.onRefreshTree();
+                }
+            }
+        }, ClickEvent.getType());
     }
 
     /** {@inheritDoc} */
@@ -270,7 +288,7 @@ public class ProjectExplorerViewImpl extends BaseView<ProjectExplorerView.Action
     }
 
     @Nonnull
-    public Array<TreeNode<?>> getSelectedNodes() {
+    public List<TreeNode<?>> getSelectedNodes() {
         return tree.getSelectionModel().getSelectedNodes();
     }
 

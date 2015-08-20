@@ -11,11 +11,19 @@
 package org.eclipse.che.dto.generator;
 
 import org.eclipse.che.dto.shared.CompactJsonDto;
+import org.eclipse.che.dto.shared.DTO;
 import org.eclipse.che.dto.shared.DelegateTo;
+import org.eclipse.che.dto.shared.JsonFieldName;
 import org.eclipse.che.dto.shared.SerializationIndex;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import com.google.gson.stream.JsonWriter;
 
+import java.io.IOException;
+import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -27,6 +35,8 @@ import java.util.Map;
 
 /** Abstract base class for the source generating template for a single DTO. */
 abstract class DtoImpl {
+    protected static final String COPY_JSONS_PARAM = "copyJsons";
+
     private final Class<?>     dtoInterface;
     private final DtoTemplate  enclosingTemplate;
     private final boolean      compactJson;
@@ -111,7 +121,10 @@ abstract class DtoImpl {
         return "ensure" + getCamelCaseName(fieldName);
     }
 
-    protected String getJsonFieldName(String getterName) {
+    /**
+     * Get the canonical name of the field by deriving it from a getter method's name.
+     */
+    protected String getFieldNameFromGetterName(String getterName) {
         String fieldName;
         if (getterName.startsWith("get")) {
             fieldName = getterName.substring(3);
@@ -123,29 +136,72 @@ abstract class DtoImpl {
     }
 
     /**
+     * Get the name of the JSON field that corresponds to the given getter method in a DTO-annotated type.
+     */
+    protected String getJsonFieldName(Method getterMethod) {
+        // First, check if a custom field name is defined for the getter
+        JsonFieldName fieldNameAnn = getterMethod.getAnnotation(JsonFieldName.class);
+        if (fieldNameAnn != null) {
+            String customFieldName = fieldNameAnn.value();
+            if (customFieldName != null && !customFieldName.isEmpty()) {
+                return customFieldName;
+            }
+        }
+        // If no custom name is given for the field, deduce it from the camel notation
+        return getFieldNameFromGetterName(getterMethod.getName());
+    }
+
+    /**
      * Our super interface may implement some other interface (or not). We need to know because if it does then we need to directly extend
      * said super interfaces impl class.
      */
-    protected Class<?> getSuperInterface(Class<?> dto) {
+    protected Class<?> getSuperDtoInterface(Class<?> dto) {
         Class<?>[] superInterfaces = dto.getInterfaces();
-        return superInterfaces.length == 0 ? null : superInterfaces[0];
+        if (superInterfaces.length > 0) {
+            for (Class<?> superInterface : superInterfaces) {
+                if (superInterface.isAnnotationPresent(DTO.class)) {
+                    return superInterface;
+                }
+            }
+        }
+        return null;
     }
 
     protected List<Method> getDtoGetters(Class<?> dto) {
-        List<Method> getters = new ArrayList<>();
+        final Map<String, Method> getters = new HashMap<>();
         if (enclosingTemplate.isDtoInterface(dto)) {
             addDtoGetters(dto, getters);
+            addSuperGetters(dto, getters);
         }
-        return getters;
+        return new ArrayList<>(getters.values());
+    }
+
+    /**
+     * Adds all getters from parent <b>NOT DTO</b> interfaces for given {@code dto} interface.
+     * Does not add method when it is already present in getters map.
+     */
+    private void addSuperGetters(Class<?> dto, Map<String, Method> getters) {
+        for (Class<?> superInterface : dto.getInterfaces()) {
+            if (!superInterface.isAnnotationPresent(DTO.class)) {
+                for (Method method : superInterface.getDeclaredMethods()) {
+                    //when method is already present in map then child interface
+                    //overrides it, which means that it should not be put into getters
+                    if (isDtoGetter(method) && !getters.containsKey(method.getName())) {
+                        getters.put(method.getName(), method);
+                    }
+                }
+                addSuperGetters(superInterface, getters);
+            }
+        }
     }
 
     protected List<Method> getInheritedDtoGetters(Class<?> dto) {
         List<Method> getters = new ArrayList<>();
         if (enclosingTemplate.isDtoInterface(dto)) {
-            Class<?> superInterface = getSuperInterface(getDtoInterface());
+            Class<?> superInterface = getSuperDtoInterface(dto);
             while (superInterface != null) {
                 addDtoGetters(superInterface, getters);
-                superInterface = getSuperInterface(superInterface);
+                superInterface = getSuperDtoInterface(superInterface);
             }
 
             addDtoGetters(dto, getters);
@@ -153,9 +209,17 @@ abstract class DtoImpl {
         return getters;
     }
 
+    private void addDtoGetters(Class<?> dto, Map<String, Method> getters) {
+        for (Method method : dto.getDeclaredMethods()) {
+            if (!method.isDefault() && isDtoGetter(method)) {
+                getters.put(method.getName(), method);
+            }
+        }
+    }
+
     private void addDtoGetters(Class<?> dto, List<Method> getters) {
         for (Method method : dto.getDeclaredMethods()) {
-            if (isDtoGetter(method)) {
+            if (!method.isDefault() && isDtoGetter(method)) {
                 getters.add(method);
             }
         }
@@ -227,6 +291,10 @@ abstract class DtoImpl {
     /** Tests whether or not a given return type is a java.util.Map. */
     public static boolean isMap(Class<?> returnType) {
         return returnType.equals(Map.class);
+    }
+
+    public static boolean isAny(Class<?> returnType) {
+        return returnType.equals(Object.class);
     }
 
     /**
@@ -323,6 +391,21 @@ abstract class DtoImpl {
     protected boolean isLastMethod(Method method) {
         Preconditions.checkNotNull(method);
         return method == dtoMethods.get(dtoMethods.size() - 1);
+    }
+
+    /**
+     * Create a textual representation of a string literal that evaluates to the given value.
+     */
+    protected String quoteStringLiteral(String value) {
+        StringWriter sw = new StringWriter();
+        try (JsonWriter writer = new JsonWriter(sw)) {
+            writer.setLenient(true);
+            writer.value(value);
+            writer.flush();
+        } catch (IOException ex) {
+            throw new RuntimeException("Unexpected I/O failure: " + ex.getLocalizedMessage(), ex);
+        }
+        return sw.toString();
     }
 
     /**

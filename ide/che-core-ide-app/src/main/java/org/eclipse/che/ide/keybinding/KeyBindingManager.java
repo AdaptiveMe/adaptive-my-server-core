@@ -21,7 +21,6 @@ import org.eclipse.che.ide.api.action.ActionEvent;
 import org.eclipse.che.ide.api.action.ActionManager;
 import org.eclipse.che.ide.api.keybinding.KeyBindingAgent;
 import org.eclipse.che.ide.api.keybinding.Scheme;
-import org.eclipse.che.ide.collections.Array;
 import org.eclipse.che.ide.ui.toolbar.PresentationFactory;
 import org.eclipse.che.ide.util.browser.UserAgent;
 import org.eclipse.che.ide.util.dom.Elements;
@@ -31,6 +30,7 @@ import org.eclipse.che.ide.util.input.SignalEventUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 
 /**
  * Implementation of the {@link KeyBindingAgent}.
@@ -51,17 +51,13 @@ public class KeyBindingManager implements KeyBindingAgent {
             //handle event in active scheme
 
             int digest = CharCodeWithModifiers.computeKeyDigest(signalEvent);
-            Array<String> actionIds = activeScheme.getActionIds(digest);
+            List<String> actionIds = activeScheme.getActionIds(digest);
             if (!actionIds.isEmpty()) {
-                runActions(actionIds);
-                event.preventDefault();
-                event.stopPropagation();
+                runActions(actionIds, event);
             }
             //else handle event in global scheme
             else if (!(actionIds = globalScheme.getActionIds(digest)).isEmpty()) {
-                runActions(actionIds);
-                event.preventDefault();
-                event.stopPropagation();
+                runActions(actionIds, event);
             }
             //default, lets this event handle other part of the IDE
         }
@@ -84,20 +80,33 @@ public class KeyBindingManager implements KeyBindingAgent {
         // Attach the listeners.
         final Element documentElement = Elements.getDocument().getDocumentElement();
         if (UserAgent.isFirefox()) {
-            // firefox fiers keypress events
+            // firefox fires keypress events
             documentElement.addEventListener(Event.KEYPRESS, downListener, true);
         } else {
-            //webkit browsers fiers keydown events
+            //webkit fires keydown events
             documentElement.addEventListener(Event.KEYDOWN, downListener, true);
         }
     }
 
-    private void runActions(Array<String> actionIds) {
-        for (String actionId : actionIds.asIterable()) {
+    /**
+     * Finds and runs an action cancelling original key event
+     *
+     * @param actionIds list containing action ids
+     * @param keyEvent original key event
+     */
+    private void runActions(List<String> actionIds, Event keyEvent) {
+        for (String actionId : actionIds) {
             Action action = actionManager.getAction(actionId);
+
             ActionEvent e = new ActionEvent("", presentationFactory.getPresentation(action), actionManager, 0);
             action.update(e);
+
             if (e.getPresentation().isEnabled() && e.getPresentation().isVisible()) {
+                /** Stop handling the key event */
+                keyEvent.preventDefault();
+                keyEvent.stopPropagation();
+
+                /** Perform the action */
                 action.actionPerformed(e);
             }
         }

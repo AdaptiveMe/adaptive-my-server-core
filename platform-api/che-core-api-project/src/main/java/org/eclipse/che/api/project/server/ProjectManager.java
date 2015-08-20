@@ -30,7 +30,6 @@ import java.util.Map;
  *
  * @author andrew00x
  *
- * @deprecated rename DefaultProjectManager instead, no needs to have interface to implement
  */
 @ImplementedBy(DefaultProjectManager.class)
 public interface ProjectManager {
@@ -43,7 +42,7 @@ public interface ProjectManager {
      * @throws ServerException
      *         if an error occurs
      */
-    List<Project> getProjects(String workspace) throws ServerException;
+    List<Project> getProjects(String workspace) throws ServerException, NotFoundException;
 
     /**
      * Gets single project by id of workspace and project's path in this workspace.
@@ -58,7 +57,7 @@ public interface ProjectManager {
      * @throws ServerException
      *         if other error occurs
      */
-    Project getProject(String workspace, String projectPath) throws ForbiddenException, ServerException;
+    Project getProject(String workspace, String projectPath) throws ForbiddenException, ServerException, NotFoundException;
 
     /**
      *
@@ -78,7 +77,7 @@ public interface ProjectManager {
      */
     Project createProject(String workspace, String name, ProjectConfig projectConfig, Map<String, String> options,
                           String visibility)
-            throws ConflictException, ForbiddenException, ServerException, ProjectTypeConstraintException;
+            throws ConflictException, ForbiddenException, ServerException, ProjectTypeConstraintException, NotFoundException;
 
     /**
      * Gets root folder od project tree.
@@ -89,7 +88,7 @@ public interface ProjectManager {
      * @throws ServerException
      *         if an error occurs
      */
-    FolderEntry getProjectsRoot(String workspace) throws ServerException;
+    FolderEntry getProjectsRoot(String workspace) throws ServerException, NotFoundException;
 
     /**
      * Gets ProjectMisc.

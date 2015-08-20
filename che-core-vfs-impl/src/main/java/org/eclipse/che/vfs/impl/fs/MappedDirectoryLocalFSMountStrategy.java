@@ -12,6 +12,8 @@ package org.eclipse.che.vfs.impl.fs;
 
 import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.commons.env.EnvironmentContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -23,6 +25,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.nio.file.Files;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,7 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Singleton
 public class MappedDirectoryLocalFSMountStrategy implements LocalFSMountStrategy {
-    private final Map<String, java.io.File> mapping = new ConcurrentHashMap<>();
+    private static final Logger                    LOG     = LoggerFactory.getLogger(MappedDirectoryLocalFSMountStrategy.class);
+
+    private final        Map<String, java.io.File> mapping = new ConcurrentHashMap<>();
 
     private final java.io.File mappingFile;
 
@@ -51,8 +56,8 @@ public class MappedDirectoryLocalFSMountStrategy implements LocalFSMountStrategy
     }
 
     @PostConstruct
-    private void start() {
-        if (mappingFile.isFile()) {
+    public void start() {
+        if (mappingFile.exists() && mappingFile.isFile()) {
             try {
                 loadFromPropertiesFile(mappingFile);
             } catch (IOException e) {
@@ -63,14 +68,20 @@ public class MappedDirectoryLocalFSMountStrategy implements LocalFSMountStrategy
     }
 
     @PreDestroy
-    private void stop() {
-        if (mappingFile.isFile()) {
+    public void stop() {
+        if (!mappingFile.exists()) {
             try {
-                saveInPropertiesFile(mappingFile);
+                Files.createFile(mappingFile.toPath());
             } catch (IOException e) {
                 throw new IllegalStateException(
-                        String.format("Unable save directory mapping in file %s. %s", mappingFile, e.getMessage()), e);
+                        String.format("Unable create file %s. %s", mappingFile, e.getMessage()), e);
             }
+        }
+        try {
+            saveInPropertiesFile(mappingFile);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    String.format("Unable save directory mapping in file %s. %s", mappingFile, e.getMessage()), e);
         }
     }
 

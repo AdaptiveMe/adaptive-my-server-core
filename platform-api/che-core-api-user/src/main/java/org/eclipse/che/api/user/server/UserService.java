@@ -18,6 +18,7 @@ import com.wordnik.swagger.annotations.ApiParam;
 import com.wordnik.swagger.annotations.ApiResponse;
 import com.wordnik.swagger.annotations.ApiResponses;
 
+import org.eclipse.che.api.core.ApiException;
 import org.eclipse.che.api.core.ConflictException;
 import org.eclipse.che.api.core.ForbiddenException;
 import org.eclipse.che.api.core.NotFoundException;
@@ -34,6 +35,7 @@ import org.eclipse.che.api.user.server.dao.Profile;
 import org.eclipse.che.api.user.server.dao.User;
 import org.eclipse.che.api.user.server.dao.UserDao;
 import org.eclipse.che.api.user.server.dao.UserProfileDao;
+import org.eclipse.che.api.user.shared.dto.NewUser;
 import org.eclipse.che.api.user.shared.dto.UserDescriptor;
 import org.eclipse.che.api.user.shared.dto.UserInRoleDescriptor;
 import org.eclipse.che.commons.env.EnvironmentContext;
@@ -46,6 +48,7 @@ import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
+import javax.ws.rs.HttpMethod;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -55,15 +58,19 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
 import javax.ws.rs.core.UriBuilder;
+
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import static com.google.common.base.MoreObjects.firstNonNull;
+import static com.google.common.base.Strings.isNullOrEmpty;
 import static javax.ws.rs.core.MediaType.APPLICATION_FORM_URLENCODED;
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 import static javax.ws.rs.core.Response.Status.CREATED;
 import static javax.ws.rs.core.Response.status;
+import static org.eclipse.che.api.user.server.Constants.ID_LENGTH;
 import static org.eclipse.che.api.user.server.Constants.LINK_REL_CREATE_USER;
 import static org.eclipse.che.api.user.server.Constants.LINK_REL_GET_CURRENT_USER;
 import static org.eclipse.che.api.user.server.Constants.LINK_REL_GET_CURRENT_USER_PROFILE;
@@ -103,6 +110,9 @@ public class UserService extends Service {
 
     /**
      * Creates new user and profile.
+     * <p/>
+     * When current user is in 'system/admin' role then {@code newUser} parameter
+     * will be used for user creation, otherwise method uses {@code token} and {@link #tokenValidator}.
      *
      * @param token
      *         authentication token
@@ -123,43 +133,35 @@ public class UserService extends Service {
      * @see #remove(String)
      */
     @ApiOperation(value = "Create a new user",
-                  notes = "Create a new user in the system",
-                  response = UserDescriptor.class,
-                  position = 1)
+                  notes = "Create a new user in the system. There are two ways to create a user: through a regular registration workflow " +
+                          "and by system/admin. In the former case, auth token is sent to user's mailbox, while system/admin can create a user directly " +
+                          "with predefined name and password",
+                  response = UserDescriptor.class)
     @ApiResponses({@ApiResponse(code = 201, message = "Created"),
                    @ApiResponse(code = 401, message = "Missed token parameter"),
                    @ApiResponse(code = 409, message = "Invalid token"),
+                   @ApiResponse(code = 403, message = "Invalid or missing request parameters"),
                    @ApiResponse(code = 500, message = "Internal Server Error")})
     @POST
     @Path("/create")
-    @GenerateLink(rel = LINK_REL_CREATE_USER)
+    @Consumes(APPLICATION_JSON)
     @Produces(APPLICATION_JSON)
-    public Response create(@ApiParam(value = "Authentication token", required = true) @QueryParam("token") @Required String token,
-                           @ApiParam(value = "User type") @QueryParam("temporary") boolean isTemporary,
-                           @Context SecurityContext context) throws UnauthorizedException,
-                                                                    ConflictException,
-                                                                    ServerException,
-                                                                    NotFoundException {
-        if (token == null) {
-            throw new UnauthorizedException("Missed token parameter");
-        }
-        final String email = tokenValidator.validateToken(token);
-        final String id = generate("user", Constants.ID_LENGTH);
+    @GenerateLink(rel = LINK_REL_CREATE_USER)
+    public Response create(@ApiParam(value = "New user") NewUser newUser,
+                           @ApiParam(value = "Authentication token") @QueryParam("token") String token,
+                           @ApiParam(value = "User type") @QueryParam("temporary") @DefaultValue("false") Boolean isTemporary,
+                           @Context SecurityContext context) throws ApiException {
+        final User user = context.isUserInRole("system/admin") ? fromEntity(newUser) : fromToken(token);
 
-        //creating user
-        final User user = new User().withId(id)
-                                    .withEmail(email)
-                                    .withPassword(generate("pass", PASSWORD_LENGTH));
-        userDao.create(user);
+        userDao.create(user.withId(generate("user", ID_LENGTH))
+                           .withPassword(firstNonNull(user.getPassword(), generate("", PASSWORD_LENGTH))));
 
-        //creating profile
-        profileDao.create(new Profile().withId(id).withUserId(id));
+        profileDao.create(new Profile(user.getId()));
 
-        //storing preferences
         final Map<String, String> preferences = new HashMap<>(4);
-        preferences.put("temporary", String.valueOf(isTemporary));
+        preferences.put("temporary", Boolean.toString(isTemporary));
         preferences.put("codenvy:created", Long.toString(System.currentTimeMillis()));
-        preferenceDao.setPreferences(id, preferences);
+        preferenceDao.setPreferences(user.getId(), preferences);
 
         return status(CREATED).entity(toDescriptor(user, context)).build();
     }
@@ -192,18 +194,17 @@ public class UserService extends Service {
      *
      * @param password
      *         new user password
-     * @throws ConflictException
+     * @throws ForbiddenException
      *         when given password is {@code null}
      * @throws ServerException
      *         when some error occurred while updating profile
      * @see UserDescriptor
      */
     @ApiOperation(value = "Update password",
-                  notes = "Update current password",
-                  position = 3)
+                  notes = "Update current password")
     @ApiResponses({@ApiResponse(code = 204, message = "OK"),
                    @ApiResponse(code = 404, message = "Not Found"),
-                   @ApiResponse(code = 409, message = "Invalid password"),
+                   @ApiResponse(code = 403, message = "Invalid password"),
                    @ApiResponse(code = 500, message = "Internal Server Error")})
     @POST
     @Path("/password")
@@ -212,7 +213,7 @@ public class UserService extends Service {
     @Consumes(APPLICATION_FORM_URLENCODED)
     public void updatePassword(@ApiParam(value = "New password", required = true)
                                @FormParam("password")
-                               String password) throws NotFoundException, ServerException, ConflictException {
+                               String password) throws NotFoundException, ServerException, ForbiddenException, ConflictException {
         checkPassword(password);
 
         final User user = userDao.getById(currentUser().getId());
@@ -237,8 +238,7 @@ public class UserService extends Service {
      */
     @ApiOperation(value = "Get user by ID",
                   notes = "Get user by its ID in the system. Roles allowed: system/admin, system/manager.",
-                  response = UserDescriptor.class,
-                  position = 4)
+                  response = UserDescriptor.class)
     @ApiResponses({@ApiResponse(code = 200, message = "OK"),
                    @ApiResponse(code = 404, message = "Not Found"),
                    @ApiResponse(code = 500, message = "Internal Server Error")})
@@ -270,8 +270,7 @@ public class UserService extends Service {
      */
     @ApiOperation(value = "Get user by email",
                   notes = "Get user by registration email. Roles allowed: system/admin, system/manager.",
-                  response = UserDescriptor.class,
-                  position = 5)
+                  response = UserDescriptor.class)
     @ApiResponses({@ApiResponse(code = 200, message = "OK"),
                    @ApiResponse(code = 403, message = "Missed parameter email"),
                    @ApiResponse(code = 404, message = "Not Found"),
@@ -303,8 +302,7 @@ public class UserService extends Service {
      *         when some error occurred while removing user
      */
     @ApiOperation(value = "Delete user",
-                  notes = "Delete a user from the system. Roles allowed: system/admin.",
-                  position = 6)
+                  notes = "Delete a user from the system. Roles allowed: system/admin")
     @ApiResponses({@ApiResponse(code = 204, message = "Deleted"),
                    @ApiResponse(code = 404, message = "Not Found"),
                    @ApiResponse(code = 409, message = "Impossible to remove user"),
@@ -335,9 +333,8 @@ public class UserService extends Service {
      *         when unable to perform the check
      */
     @ApiOperation(value = "Check role for the authenticated user",
-            notes = "Check if user has a role in given scope (default is system) and with an optional scope id. Roles allowed: user, system/admin, system/manager.",
-            response = UserInRoleDescriptor.class,
-            position = 7)
+                  notes = "Check if user has a role in given scope (default is system) and with an optional scope id. Roles allowed: user, system/admin, system/manager.",
+                  response = UserInRoleDescriptor.class)
     @ApiResponses({@ApiResponse(code = 200, message = "OK"),
                    @ApiResponse(code = 403, message = "Unable to check for the given scope"),
                    @ApiResponse(code = 500, message = "Internal Server Error")})
@@ -368,16 +365,40 @@ public class UserService extends Service {
             throw new ForbiddenException(String.format("Only system scope is handled for now. Provided scope is %s", scope));
         }
 
-        return DtoFactory.getInstance().createDto(UserInRoleDescriptor.class).withIsInRole(isInRole).withRoleName(role).withScope(scope).withScopeId(scopeId);
+        return DtoFactory.getInstance().createDto(UserInRoleDescriptor.class).withIsInRole(isInRole).withRoleName(role).withScope(scope)
+                         .withScopeId(
+                                 scopeId);
 
     }
 
-    private void checkPassword(String password) throws ConflictException {
+    private User fromEntity(NewUser newUser) throws ForbiddenException {
+        if (newUser == null) {
+            throw new ForbiddenException("New user required");
+        }
+        if (isNullOrEmpty(newUser.getName())) {
+            throw new ForbiddenException("User name required");
+        }
+        final User user = new User().withName(newUser.getName());
+        if (newUser.getPassword() != null) {
+            checkPassword(newUser.getPassword());
+            user.setPassword(newUser.getPassword());
+        }
+        return user;
+    }
+
+    private User fromToken(String token) throws UnauthorizedException, ConflictException {
+        if (token == null) {
+            throw new UnauthorizedException("Missed token parameter");
+        }
+        return new User().withEmail(tokenValidator.validateToken(token));
+    }
+
+    private void checkPassword(String password) throws ForbiddenException {
         if (password == null) {
-            throw new ConflictException("Password required");
+            throw new ForbiddenException("Password required");
         }
         if (password.length() < 8) {
-            throw new ConflictException("Password should contain at least 8 characters");
+            throw new ForbiddenException("Password should contain at least 8 characters");
         }
         int numOfLetters = 0;
         int numOfDigits = 0;
@@ -390,7 +411,7 @@ public class UserService extends Service {
             }
         }
         if (numOfDigits == 0 || numOfLetters == 0) {
-            throw new ConflictException("Password should contain letters and digits");
+            throw new ForbiddenException("Password should contain letters and digits");
         }
     }
 
@@ -398,7 +419,7 @@ public class UserService extends Service {
         final List<Link> links = new LinkedList<>();
         final UriBuilder uriBuilder = getServiceContext().getServiceUriBuilder();
         if (context.isUserInRole("user")) {
-            links.add(LinksHelper.createLink("GET",
+            links.add(LinksHelper.createLink(HttpMethod.GET,
                                              getServiceContext().getBaseUriBuilder().path(UserProfileService.class)
                                                                 .path(UserProfileService.class, "getCurrent")
                                                                 .build()
@@ -406,7 +427,7 @@ public class UserService extends Service {
                                              null,
                                              APPLICATION_JSON,
                                              LINK_REL_GET_CURRENT_USER_PROFILE));
-            links.add(LinksHelper.createLink("GET",
+            links.add(LinksHelper.createLink(HttpMethod.GET,
                                              uriBuilder.clone()
                                                        .path(getClass(), "getCurrent")
                                                        .build()
@@ -414,7 +435,7 @@ public class UserService extends Service {
                                              null,
                                              APPLICATION_JSON,
                                              LINK_REL_GET_CURRENT_USER));
-            links.add(LinksHelper.createLink("POST",
+            links.add(LinksHelper.createLink(HttpMethod.POST,
                                              uriBuilder.clone()
                                                        .path(getClass(), "updatePassword")
                                                        .build()
@@ -424,7 +445,7 @@ public class UserService extends Service {
                                              LINK_REL_UPDATE_PASSWORD));
         }
         if (context.isUserInRole("system/admin") || context.isUserInRole("system/manager")) {
-            links.add(LinksHelper.createLink("GET",
+            links.add(LinksHelper.createLink(HttpMethod.GET,
                                              uriBuilder.clone()
                                                        .path(getClass(), "getById")
                                                        .build(user.getId())
@@ -432,7 +453,7 @@ public class UserService extends Service {
                                              null,
                                              APPLICATION_JSON,
                                              LINK_REL_GET_USER_BY_ID));
-            links.add(LinksHelper.createLink("GET",
+            links.add(LinksHelper.createLink(HttpMethod.GET,
                                              getServiceContext().getBaseUriBuilder()
                                                                 .path(UserProfileService.class).path(UserProfileService.class, "getById")
                                                                 .build(user.getId())
@@ -440,18 +461,20 @@ public class UserService extends Service {
                                              null,
                                              APPLICATION_JSON,
                                              LINK_REL_GET_USER_PROFILE_BY_ID));
-            links.add(LinksHelper.createLink("GET",
-                                             uriBuilder.clone()
-                                                       .path(getClass(), "getByEmail")
-                                                       .queryParam("email", user.getEmail())
-                                                       .build()
-                                                       .toString(),
-                                             null,
-                                             APPLICATION_JSON,
-                                             LINK_REL_GET_USER_BY_EMAIL));
+            if (user.getEmail() != null) {
+                links.add(LinksHelper.createLink(HttpMethod.GET,
+                                                 uriBuilder.clone()
+                                                           .path(getClass(), "getByEmail")
+                                                           .queryParam("email", user.getEmail())
+                                                           .build()
+                                                           .toString(),
+                                                 null,
+                                                 APPLICATION_JSON,
+                                                 LINK_REL_GET_USER_BY_EMAIL));
+            }
         }
         if (context.isUserInRole("system/admin")) {
-            links.add(LinksHelper.createLink("DELETE",
+            links.add(LinksHelper.createLink(HttpMethod.DELETE,
                                              uriBuilder.clone()
                                                        .path(getClass(), "remove")
                                                        .build(user.getId())
@@ -463,6 +486,7 @@ public class UserService extends Service {
         return DtoFactory.getInstance().createDto(UserDescriptor.class)
                          .withId(user.getId())
                          .withEmail(user.getEmail())
+                         .withName(user.getName())
                          .withAliases(user.getAliases())
                          .withPassword("<none>")
                          .withLinks(links);

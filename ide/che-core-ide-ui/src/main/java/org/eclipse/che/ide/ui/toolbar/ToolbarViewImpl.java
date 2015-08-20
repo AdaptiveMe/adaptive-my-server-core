@@ -11,7 +11,7 @@
 package org.eclipse.che.ide.ui.toolbar;
 
 import com.google.gwt.user.client.Timer;
-import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
 
@@ -22,36 +22,45 @@ import org.eclipse.che.ide.api.action.CustomComponentAction;
 import org.eclipse.che.ide.api.action.Presentation;
 import org.eclipse.che.ide.api.action.Separator;
 import org.eclipse.che.ide.api.keybinding.KeyBindingAgent;
-import org.eclipse.che.ide.collections.Array;
-import org.eclipse.che.ide.collections.Collections;
+import org.eclipse.che.ide.collections.ListHelper;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
 
 
 /**
  * The implementation of {@link ToolbarView}
  *
- * @author <a href="mailto:aplotnikov@exoplatform.com">Andrey Plotnikov</a>
+ * @author Andrey Plotnikov
+ * @author Vitaliy Guliy
  */
-public class ToolbarViewImpl extends Composite implements ToolbarView {
+public class ToolbarViewImpl extends FlowPanel implements ToolbarView {
 
     public static final int DELAY_MILLIS = 1000;
-    Toolbar toolbar;
+
+    private FlowPanel leftToolbar;
+    private FlowPanel rightToolbar;
+
     private String          place;
     private ActionGroup     leftActionGroup;
     private ActionGroup     rightActionGroup;
     private ActionManager   actionManager;
     private KeyBindingAgent keyBindingAgent;
 
-    private Array<Action> newLeftVisibleActions;
-    private Array<Action> leftVisibleActions;
+    private List<Action> newLeftVisibleActions;
+    private List<Action> leftVisibleActions;
 
-    private Array<Action> newRightVisibleActions;
-    private Array<Action> rightVisibleActions;
+    private List<Action> newRightVisibleActions;
+    private List<Action> rightVisibleActions;
 
 
     private PresentationFactory presentationFactory;
     private boolean             addSeparatorFirst;
+    private ToolbarResources    toolbarResources;
+
+    private ActionDelegate delegate;
+
     private final Timer timer = new Timer() {
         @Override
         public void run() {
@@ -62,17 +71,29 @@ public class ToolbarViewImpl extends Composite implements ToolbarView {
 
     /** Create view with given instance of resources. */
     @Inject
-    public ToolbarViewImpl(ActionManager actionManager, KeyBindingAgent keyBindingAgent) {
+    public ToolbarViewImpl(ActionManager actionManager,
+                           KeyBindingAgent keyBindingAgent,
+                           ToolbarResources toolbarResources) {
         this.actionManager = actionManager;
         this.keyBindingAgent = keyBindingAgent;
-        toolbar = new Toolbar();
-        initWidget(toolbar);
+        this.toolbarResources = toolbarResources;
 
-        newLeftVisibleActions = Collections.createArray();
-        leftVisibleActions = Collections.createArray();
+        toolbarResources.toolbar().ensureInjected();
 
-        newRightVisibleActions = Collections.createArray();
-        rightVisibleActions = Collections.createArray();
+        setStyleName(toolbarResources.toolbar().toolbarPanel());
+
+        leftToolbar = new FlowPanel();
+        add(leftToolbar);
+
+        rightToolbar = new FlowPanel();
+        rightToolbar.addStyleName(toolbarResources.toolbar().rightPanel());
+        add(rightToolbar);
+
+        newLeftVisibleActions = new ArrayList<>();
+        leftVisibleActions = new ArrayList<>();
+
+        newRightVisibleActions = new ArrayList<>();
+        rightVisibleActions = new ArrayList<>();
 
         presentationFactory = new PresentationFactory();
     }
@@ -80,8 +101,7 @@ public class ToolbarViewImpl extends Composite implements ToolbarView {
     /** {@inheritDoc} */
     @Override
     public void setDelegate(ActionDelegate delegate) {
-        // ok
-        // there are no events for now
+        this.delegate = delegate;
     }
 
     @Override
@@ -110,85 +130,96 @@ public class ToolbarViewImpl extends Composite implements ToolbarView {
         if (leftActionGroup != null) {
             newLeftVisibleActions.clear();
             Utils.expandActionGroup(leftActionGroup, newLeftVisibleActions, presentationFactory, place, actionManager, false);
-            if (!Collections.equals(newLeftVisibleActions, leftVisibleActions)) {
-                final Array<Action> temp = leftVisibleActions;
+            if (!ListHelper.equals(newLeftVisibleActions, leftVisibleActions)) {
+                final List<Action> temp = leftVisibleActions;
                 leftVisibleActions = newLeftVisibleActions;
                 newLeftVisibleActions = temp;
-                toolbar.clearMainPanel();
+                leftToolbar.clear();
                 fillLeftToolbar(leftVisibleActions);
             }
         }
         if (rightActionGroup != null) {
             newRightVisibleActions.clear();
             Utils.expandActionGroup(rightActionGroup, newRightVisibleActions, presentationFactory, place, actionManager, false);
-            if (!Collections.equals(newRightVisibleActions, rightVisibleActions)) {
-                final Array<Action> temp = rightVisibleActions;
+            if (!ListHelper.equals(newRightVisibleActions, rightVisibleActions)) {
+                final List<Action> temp = rightVisibleActions;
                 rightVisibleActions = newRightVisibleActions;
                 newRightVisibleActions = temp;
-                toolbar.clearRightPanel();
+                rightToolbar.clear();
                 fillRightToolbar(rightVisibleActions);
             }
         }
     }
 
     //TODO need improve code : dublicate code
-    private void fillLeftToolbar(Array<Action> leftActions) {
+    private void fillLeftToolbar(List<Action> leftActions) {
         if (addSeparatorFirst) {
-            toolbar.addToMainPanel(new DelimiterItem());
-            toolbar.addToRightPanel(new DelimiterItem());
+            leftToolbar.add(newDelimiter());
+            rightToolbar.add(newDelimiter());
         }
+
         for (int i = 0; i < leftActions.size(); i++) {
             final Action action = leftActions.get(i);
             if (action instanceof Separator) {
                 if (i > 0 && i < leftActions.size() - 1) {
-                    toolbar.addToMainPanel(new DelimiterItem());
+                    leftToolbar.add(newDelimiter());
                 }
             } else if (action instanceof CustomComponentAction) {
                 Presentation presentation = presentationFactory.getPresentation(action);
                 Widget customComponent = ((CustomComponentAction)action).createCustomComponent(presentation);
-                toolbar.addToMainPanel(customComponent);
+                leftToolbar.add(customComponent);
             } else if (action instanceof ActionGroup && !(action instanceof CustomComponentAction) && ((ActionGroup)action).isPopup()) {
                 ActionPopupButton button =
-                        new ActionPopupButton((ActionGroup)action, actionManager, keyBindingAgent, presentationFactory, place);
-                toolbar.addToMainPanel(button);
+                        new ActionPopupButton((ActionGroup)action, actionManager, keyBindingAgent, presentationFactory, place, toolbarResources);
+                leftToolbar.add(button);
             } else {
                 final ActionButton button = createToolbarButton(action);
-                toolbar.addToMainPanel(button);
+                leftToolbar.add(button);
             }
         }
     }
 
     //TODO need improve code : dublicate code
-    private void fillRightToolbar(Array<Action> rightActions) {
+    private void fillRightToolbar(List<Action> rightActions) {
         for (int i = 0; i < rightActions.size(); i++) {
             final Action action = rightActions.get(i);
             if (action instanceof Separator) {
                 if (i > 0 && i < rightActions.size() - 1) {
-                    toolbar.addToRightPanel(new DelimiterItem());
+                    rightToolbar.add(newDelimiter());
                 }
             } else if (action instanceof CustomComponentAction) {
                 Presentation presentation = presentationFactory.getPresentation(action);
                 Widget customComponent = ((CustomComponentAction)action).createCustomComponent(presentation);
-                toolbar.addToRightPanel(customComponent);
+                rightToolbar.add(customComponent);
             } else if (action instanceof ActionGroup && !(action instanceof CustomComponentAction) && ((ActionGroup)action).isPopup()) {
                 ActionPopupButton button =
-                        new ActionPopupButton((ActionGroup)action, actionManager, keyBindingAgent, presentationFactory, place);
-                toolbar.addToRightPanel(button);
+                        new ActionPopupButton((ActionGroup)action, actionManager, keyBindingAgent, presentationFactory, place, toolbarResources);
+                rightToolbar.add(button);
             } else {
                 final ActionButton button = createToolbarButton(action);
-                toolbar.addToRightPanel(button);
+                rightToolbar.add(button);
             }
         }
     }
 
-
-    private ActionButton createToolbarButton(Action action) {
-        return new ActionButton(action, actionManager, presentationFactory.getPresentation(action), place);
+    /**
+     * Creates a delimiter widget.
+     *
+     * @return delimiter widget
+     */
+    private Widget newDelimiter() {
+        FlowPanel delimiter = new FlowPanel();
+        delimiter.setStyleName(toolbarResources.toolbar().toolbarDelimiter());
+        return delimiter;
     }
 
+    private ActionButton createToolbarButton(Action action) {
+        return new ActionButton(action, actionManager, presentationFactory.getPresentation(action), place, toolbarResources);
+    }
 
     @Override
     public void setAddSeparatorFirst(boolean addSeparatorFirst) {
         this.addSeparatorFirst = addSeparatorFirst;
     }
+
 }

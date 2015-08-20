@@ -30,6 +30,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
 
 /**
  * @author andrew00x
@@ -78,7 +79,7 @@ public class DocsModule extends AbstractModule {
     }
 
     @Path("/docs")
-    @Produces("application/json")
+    @Produces(MediaType.APPLICATION_JSON)
     public static class CodenvyApiDocsService extends ApiListingResource {
     }
 
@@ -93,7 +94,7 @@ public class DocsModule extends AbstractModule {
             config.setBasePath(baseApiUrl);
             config.setApiVersion(Constants.API_VERSION);
             final com.wordnik.swagger.model.ApiInfo apiInfo = new com.wordnik.swagger.model.ApiInfo(
-                    "Codenvy REST API", // title
+                    "Eclipse Che REST API", // title
                     "", // description
                     "", // termsOfServiceUrl
                     "", // contacts

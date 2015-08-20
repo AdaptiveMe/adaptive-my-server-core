@@ -22,6 +22,8 @@ import org.eclipse.che.ide.Resources;
 import org.eclipse.che.ide.api.action.Action;
 import org.eclipse.che.ide.api.action.ActionEvent;
 import org.eclipse.che.ide.api.app.AppContext;
+import org.eclipse.che.ide.api.notification.Notification;
+import org.eclipse.che.ide.api.notification.NotificationManager;
 import org.eclipse.che.ide.api.project.tree.AbstractTreeNode;
 import org.eclipse.che.ide.api.project.tree.TreeNode;
 import org.eclipse.che.ide.api.project.tree.generic.FileNode;
@@ -30,11 +32,11 @@ import org.eclipse.che.ide.api.project.tree.generic.ProjectNode;
 import org.eclipse.che.ide.api.project.tree.generic.StorableNode;
 import org.eclipse.che.ide.api.selection.Selection;
 import org.eclipse.che.ide.api.selection.SelectionAgent;
-import org.eclipse.che.ide.collections.Array;
 import org.eclipse.che.ide.part.projectexplorer.ProjectListStructure;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.rest.Unmarshallable;
+import org.eclipse.che.ide.ui.dialogs.CancelCallback;
 import org.eclipse.che.ide.ui.dialogs.DialogFactory;
 import org.eclipse.che.ide.ui.dialogs.InputCallback;
 import org.eclipse.che.ide.ui.dialogs.input.InputDialog;
@@ -43,8 +45,11 @@ import org.eclipse.che.ide.util.NameUtils;
 
 import javax.annotation.Nullable;
 
+import java.util.List;
+
 import static org.eclipse.che.api.runner.ApplicationStatus.NEW;
 import static org.eclipse.che.api.runner.ApplicationStatus.RUNNING;
+import static org.eclipse.che.ide.api.notification.Notification.Type.ERROR;
 import static org.eclipse.che.ide.api.project.tree.TreeNode.RenameCallback;
 
 /**
@@ -55,6 +60,7 @@ import static org.eclipse.che.ide.api.project.tree.TreeNode.RenameCallback;
 @Singleton
 public class RenameItemAction extends Action {
     private final AnalyticsEventLogger     eventLogger;
+    private final NotificationManager      notificationManager;
     private final CoreLocalizationConstant localization;
     private final RunnerServiceClient      runnerServiceClient;
     private final DtoUnmarshallerFactory   dtoUnmarshallerFactory;
@@ -69,6 +75,7 @@ public class RenameItemAction extends Action {
     public RenameItemAction(Resources resources,
                             AnalyticsEventLogger eventLogger,
                             SelectionAgent selectionAgent,
+                            NotificationManager notificationManager,
                             CoreLocalizationConstant localization,
                             RunnerServiceClient runnerServiceClient,
                             DtoUnmarshallerFactory dtoUnmarshallerFactory,
@@ -77,6 +84,7 @@ public class RenameItemAction extends Action {
         super(localization.renameItemActionText(), localization.renameItemActionDescription(), null, resources.rename());
         this.selectionAgent = selectionAgent;
         this.eventLogger = eventLogger;
+        this.notificationManager = notificationManager;
         this.localization = localization;
         this.runnerServiceClient = runnerServiceClient;
         this.dtoUnmarshallerFactory = dtoUnmarshallerFactory;
@@ -112,13 +120,13 @@ public class RenameItemAction extends Action {
                     if (hasRunningProcesses) {
                         dialogFactory.createMessageDialog("", localization.stopProcessesBeforeRenamingProject(), null).show();
                     } else {
-                        askForRenamingNode(selectedNode);
+                        renameNode(selectedNode);
                     }
                 }
 
                 @Override
                 public void onFailure(Throwable caught) {
-                    askForRenamingNode(selectedNode);
+                    renameNode(selectedNode);
                 }
             });
         } else {
@@ -145,35 +153,51 @@ public class RenameItemAction extends Action {
         e.getPresentation().setEnabled(enabled);
     }
 
-    private void askForRenamingNode(final StorableNode nodeToRename) {
+    /**
+     * Asks the user for new name and renames the node.
+     *
+     * @param node node to rename
+     */
+    private void renameNode(final StorableNode node) {
         final InputCallback inputCallback = new InputCallback() {
             @Override
             public void accepted(final String value) {
-                nodeToRename.rename(value, new RenameCallback() {
+                node.rename(value, new RenameCallback() {
                     @Override
                     public void onRenamed() {
-                        //nothing do
                     }
 
                     @Override
-                    public void onFailure(Throwable exception) {
+                    public void onFailure(Throwable caught) {
+                        notificationManager.showNotification(new Notification(caught.getMessage(), ERROR));
                     }
                 });
             }
         };
 
-        final int selectionLength = nodeToRename.getName().indexOf('.') >= 0
-                                    ? nodeToRename.getName().lastIndexOf('.')
-                                    : nodeToRename.getName().length();
+        askForNewName(node, inputCallback, null);
+    }
 
-        InputDialog inputDialog = dialogFactory.createInputDialog(getDialogTitle(nodeToRename),
-                                                                  localization.renameDialogNewNameLabel(),
-                                                                  nodeToRename.getName(), 0, selectionLength, inputCallback, null);
-        if (nodeToRename instanceof FileNode) {
+    /**
+     * Asks the user for new node name.
+     *
+     * @param node
+     * @param inputCallback
+     * @param cancelCallback
+     */
+    public void askForNewName(final StorableNode node, final InputCallback inputCallback, final CancelCallback cancelCallback) {
+        final int selectionLength = node.getName().indexOf('.') >= 0
+                ? node.getName().lastIndexOf('.')
+                : node.getName().length();
+
+        InputDialog inputDialog = dialogFactory.createInputDialog(getDialogTitle(node),
+                localization.renameDialogNewNameLabel(),
+                node.getName(), 0, selectionLength, inputCallback, null);
+        if (node instanceof FileNode) {
             inputDialog.withValidator(fileNameValidator);
-        } else if (nodeToRename instanceof FolderNode) {
+        } else if (node instanceof FolderNode) {
             inputDialog.withValidator(folderNameValidator);
-        } else if (nodeToRename instanceof ProjectNode || nodeToRename instanceof ProjectListStructure.ProjectNode) {
+        } else if (node instanceof ProjectNode || node instanceof ProjectListStructure.ProjectNode) {
             inputDialog.withValidator(projectNameValidator);
         }
         inputDialog.show();
@@ -188,14 +212,14 @@ public class RenameItemAction extends Action {
      *         callback returns true if project has any running processes and false - otherwise
      */
     private void checkRunningProcessesForProject(StorableNode projectNode, final AsyncCallback<Boolean> callback) {
-        Unmarshallable<Array<ApplicationProcessDescriptor>> unmarshaller =
-                dtoUnmarshallerFactory.newArrayUnmarshaller(ApplicationProcessDescriptor.class);
+        Unmarshallable<List<ApplicationProcessDescriptor>> unmarshaller =
+                dtoUnmarshallerFactory.newListUnmarshaller(ApplicationProcessDescriptor.class);
         runnerServiceClient.getRunningProcesses(projectNode.getPath(),
-                                                new AsyncRequestCallback<Array<ApplicationProcessDescriptor>>(unmarshaller) {
+                                                new AsyncRequestCallback<List<ApplicationProcessDescriptor>>(unmarshaller) {
                                                     @Override
-                                                    protected void onSuccess(Array<ApplicationProcessDescriptor> result) {
+                                                    protected void onSuccess(List<ApplicationProcessDescriptor> result) {
                                                         boolean hasRunningProcesses = false;
-                                                        for (ApplicationProcessDescriptor descriptor : result.asIterable()) {
+                                                        for (ApplicationProcessDescriptor descriptor : result) {
                                                             if (descriptor.getStatus() == NEW || descriptor.getStatus() == RUNNING) {
                                                                 hasRunningProcesses = true;
                                                                 break;

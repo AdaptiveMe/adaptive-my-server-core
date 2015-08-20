@@ -17,11 +17,11 @@ import org.eclipse.che.ide.CoreLocalizationConstant;
 
 import org.eclipse.che.ide.api.notification.Notification;
 import org.eclipse.che.ide.api.notification.NotificationManager;
+import org.eclipse.che.ide.api.project.tree.TreeNode;
 import org.eclipse.che.ide.api.project.tree.generic.FileNode;
 import org.eclipse.che.ide.api.project.tree.generic.FolderNode;
 import org.eclipse.che.ide.api.project.tree.generic.ProjectNode;
 import org.eclipse.che.ide.api.project.tree.generic.StorableNode;
-import org.eclipse.che.ide.collections.Array;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.rest.Unmarshallable;
@@ -130,7 +130,7 @@ public class DeleteNodeHandler {
     /**
      * Ask the user to confirm the (multiple) delete operation.
      *
-     * @param nodeToDelete
+     * @param nodesToDelete node list for deletion
      */
     private void askForDeletingNodes(final List<StorableNode> nodesToDelete) {
         final ConfirmDialog dialog = dialogFactory.createConfirmDialog(localization.deleteMultipleDialogTitle(),
@@ -166,14 +166,14 @@ public class DeleteNodeHandler {
      * @param callback callback returns true if project has any running processes and false - otherwise
      */
     private void checkRunningProcessesForProject(StorableNode projectNode, final AsyncCallback<Boolean> callback) {
-        Unmarshallable<Array<ApplicationProcessDescriptor>> unmarshaller =
-                dtoUnmarshallerFactory.newArrayUnmarshaller(ApplicationProcessDescriptor.class);
+        Unmarshallable<List<ApplicationProcessDescriptor>> unmarshaller =
+                dtoUnmarshallerFactory.newListUnmarshaller(ApplicationProcessDescriptor.class);
         runnerServiceClient.getRunningProcesses(projectNode.getPath(),
-                                                new AsyncRequestCallback<Array<ApplicationProcessDescriptor>>(unmarshaller) {
+                                                new AsyncRequestCallback<List<ApplicationProcessDescriptor>>(unmarshaller) {
                                                     @Override
-                                                    protected void onSuccess(Array<ApplicationProcessDescriptor> result) {
+                                                    protected void onSuccess(List<ApplicationProcessDescriptor> result) {
                                                         boolean hasRunningProcesses = false;
-                                                        for (ApplicationProcessDescriptor descriptor : result.asIterable()) {
+                                                        for (ApplicationProcessDescriptor descriptor : result) {
                                                             if (descriptor.getStatus() == NEW || descriptor.getStatus() == RUNNING) {
                                                                 hasRunningProcesses = true;
                                                                 break;
@@ -213,14 +213,16 @@ public class DeleteNodeHandler {
      * @return {@link String} content
      */
     private String getDialogQuestion(StorableNode node) {
+        final String name = node.getName();
         if (node instanceof FileNode) {
-            return localization.deleteFileDialogQuestion(node.getName());
+            return localization.deleteFileDialogQuestion(name);
         } else if (node instanceof FolderNode) {
-            return localization.deleteFolderDialogQuestion(node.getName());
+            return localization.deleteFolderDialogQuestion(name);
         } else if (node instanceof ProjectNode || node instanceof ProjectListStructure.ProjectNode) {
-            return localization.deleteProjectDialogQuestion(node.getName());
+            TreeNode parent = node.getParent().getParent();
+            return  (parent == null) ? localization.deleteProjectDialogQuestion(name) : localization.deleteModuleDialogQuestion(name);
         }
-        return localization.deleteNodeDialogQuestion(node.getName());
+        return localization.deleteNodeDialogQuestion(name);
     }
 
     public void deleteNodes(final List<StorableNode> nodes) {

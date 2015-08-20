@@ -16,7 +16,7 @@
     <parent>
         <artifactId>che-core-api-parent</artifactId>
         <groupId>org.eclipse.che.core</groupId>
-        <version>3.10.1-SNAPSHOT</version>
+        <version>3.12.1-SNAPSHOT</version>
     </parent>
     <artifactId>che-core-api-core</artifactId>
     <packaging>jar</packaging>
@@ -74,6 +74,12 @@
             <groupId>javax.servlet</groupId>
             <artifactId>javax.servlet-api</artifactId>
             <version>${javax.servlet.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>javax.websocket</groupId>
+            <artifactId>javax.websocket-api</artifactId>
+            <version>${javax.websocket.api.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -213,9 +219,11 @@
     </build>
     <profiles>
         <profile>
-            <id>default</id>
+            <id>nonLinux</id>
             <activation>
-                <activeByDefault>true</activeByDefault>
+                <os>
+                    <family>!unix</family>
+                </os>
             </activation>
             <build>
                 <plugins>
@@ -227,8 +235,8 @@
                                 <include>**/*Test.java</include>
                             </includes>
                             <excludes>
-                                <exclude>com/codenvy/api/core/util/ProcessUtilTest.java</exclude>
-                                <exclude>com/codenvy/api/core/util/StandardLinuxShellTest.java</exclude>
+                                <exclude>org/eclipse/che/api/core/util/ProcessUtilTest.java</exclude>
+                                <exclude>org/eclipse/che/api/core/util/StandardLinuxShellTest.java</exclude>
                             </excludes>
                         </configuration>
                     </plugin>
@@ -250,7 +258,7 @@
                         <configuration>
                             <includes>
                                 <include>org/eclipse/che/api/core/util/ProcessUtilTest.java</include>
-                                <include>org/elipse/che/api/core/util/StandardLinuxShellTest.java</include>
+                                <include>org/eclipse/che/api/core/util/StandardLinuxShellTest.java</include>
                                 <include>**/*Test.java</include>
                             </includes>
                         </configuration>

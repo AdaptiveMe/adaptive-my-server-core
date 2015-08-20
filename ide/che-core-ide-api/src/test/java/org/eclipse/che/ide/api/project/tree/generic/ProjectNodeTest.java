@@ -13,11 +13,11 @@ package org.eclipse.che.ide.api.project.tree.generic;
 import org.eclipse.che.api.project.shared.dto.ItemReference;
 import org.eclipse.che.api.project.shared.dto.ProjectDescriptor;
 import org.eclipse.che.ide.api.project.tree.TreeNode;
-import org.eclipse.che.ide.collections.Array;
-import org.eclipse.che.ide.collections.Collections;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.test.GwtReflectionUtils;
+import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.user.client.rpc.AsyncCallback;
+import com.google.web.bindery.event.shared.Event;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -29,6 +29,9 @@ import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.eclipse.che.ide.api.project.tree.TreeNode.DeleteCallback;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -38,6 +41,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,9 +55,9 @@ public class ProjectNodeTest extends BaseNodeTest {
     private static final String ITEM_NAME       = "project_name";
     private static final String PROJECT_TYPE_ID = "project_type";
     @Captor
-    private ArgumentCaptor<AsyncRequestCallback<Array<ItemReference>>> asyncRequestCallbackCaptor;
+    private ArgumentCaptor<AsyncRequestCallback<List<ItemReference>>> asyncRequestCallbackCaptor;
     @Captor
-    private ArgumentCaptor<Array<ItemReference>>                       arrayCaptor;
+    private ArgumentCaptor<List<ItemReference>>                       arrayCaptor;
     @Mock
     private ProjectDescriptor                                          projectDescriptor;
     @Mock
@@ -69,7 +73,7 @@ public class ProjectNodeTest extends BaseNodeTest {
         when(projectDescriptor.getName()).thenReturn(ITEM_NAME);
         when(projectDescriptor.getType()).thenReturn(PROJECT_TYPE_ID);
 
-        Array<TreeNode<?>> children = Collections.createArray();
+        List<TreeNode<?>> children = new ArrayList<>();
         when(parentProjectNode.getChildren()).thenReturn(children);
     }
 
@@ -120,6 +124,30 @@ public class ProjectNodeTest extends BaseNodeTest {
 
         verify(projectServiceClient).delete(eq(ITEM_PATH), Matchers.<AsyncRequestCallback<Void>>anyObject());
         verify(callback).onDeleted();
+        verify(eventBus, times(2)).fireEvent(Matchers.<Event<EventHandler>>anyObject());
+    }
+
+    @Test
+    public void moduleShouldBeDeletedSuccessfuly() throws Exception {
+        ProjectNode parentOfParent = mock(ProjectNode.class);
+        when(parentProjectNode.getParent()).thenReturn((TreeNode)parentOfParent);
+
+        doAnswer(new Answer() {
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                Object[] arguments = invocation.getArguments();
+                AsyncRequestCallback<Void> callback = (AsyncRequestCallback<Void>)arguments[1];
+                GwtReflectionUtils.callOnSuccess(callback, (Void)null);
+                return callback;
+            }
+        }).when(projectServiceClient).delete(anyString(), (AsyncRequestCallback<Void>)anyObject());
+        DeleteCallback callback = mock(DeleteCallback.class);
+
+        projectNode.delete(callback);
+
+        verify(projectServiceClient).delete(eq(ITEM_PATH), Matchers.<AsyncRequestCallback<Void>>anyObject());
+        verify(callback).onDeleted();
+        verify(eventBus, times(2)).fireEvent(Matchers.<Event<EventHandler>>anyObject());
     }
 
     @Test
@@ -171,7 +199,7 @@ public class ProjectNodeTest extends BaseNodeTest {
         ItemReference folderItem = mock(ItemReference.class);
         when(folderItem.getType()).thenReturn("project");
 
-        projectNode.createChildNode(folderItem, Collections.<ProjectDescriptor>createArray());
+        projectNode.createChildNode(folderItem, java.util.Collections.<ProjectDescriptor>emptyList());
 
         verify(treeStructure).newFolderNode(eq(projectNode), eq(folderItem));
     }
@@ -182,7 +210,7 @@ public class ProjectNodeTest extends BaseNodeTest {
 
         String path = "path";
         AsyncCallback asyncCallback = mock(AsyncCallback.class);
-        Array<ItemReference> children = Collections.createArray();
+        List<ItemReference> children = new ArrayList<>();
 
         ItemReference item = mock(ItemReference.class);
         when(item.getName()).thenReturn("item");
@@ -195,12 +223,12 @@ public class ProjectNodeTest extends BaseNodeTest {
         projectNode.getChildren(path, asyncCallback);
 
         verify(projectServiceClient).getChildren(eq(path), asyncRequestCallbackCaptor.capture());
-        AsyncRequestCallback<Array<ItemReference>> requestCallback = asyncRequestCallbackCaptor.getValue();
+        AsyncRequestCallback<List<ItemReference>> requestCallback = asyncRequestCallbackCaptor.getValue();
         GwtReflectionUtils.callOnSuccess(requestCallback, children);
 
         verify(asyncCallback).onSuccess(arrayCaptor.capture());
 
-        Array<ItemReference> array = arrayCaptor.getValue();
+        List<ItemReference> array = arrayCaptor.getValue();
         assertEquals(children.size(), array.size());
         assertTrue(array.contains(item));
         assertTrue(array.contains(hiddenItem));
@@ -212,7 +240,7 @@ public class ProjectNodeTest extends BaseNodeTest {
 
         String path = "path";
         AsyncCallback asyncCallback = mock(AsyncCallback.class);
-        Array<ItemReference> children = Collections.createArray();
+        List<ItemReference> children = new ArrayList<>();
 
         ItemReference item = mock(ItemReference.class);
         when(item.getName()).thenReturn("item");
@@ -225,12 +253,12 @@ public class ProjectNodeTest extends BaseNodeTest {
         projectNode.getChildren(path, asyncCallback);
 
         verify(projectServiceClient).getChildren(eq(path), asyncRequestCallbackCaptor.capture());
-        AsyncRequestCallback<Array<ItemReference>> requestCallback = asyncRequestCallbackCaptor.getValue();
+        AsyncRequestCallback<List<ItemReference>> requestCallback = asyncRequestCallbackCaptor.getValue();
         GwtReflectionUtils.callOnSuccess(requestCallback, children);
 
         verify(asyncCallback).onSuccess(arrayCaptor.capture());
 
-        Array<ItemReference> array = arrayCaptor.getValue();
+        List<ItemReference> array = arrayCaptor.getValue();
         assertEquals(1, array.size());
         assertTrue(array.contains(item));
         assertFalse(array.contains(hiddenItem));
@@ -244,7 +272,7 @@ public class ProjectNodeTest extends BaseNodeTest {
         projectNode.getChildren(path, asyncCallback);
 
         verify(projectServiceClient).getChildren(eq(path), asyncRequestCallbackCaptor.capture());
-        AsyncRequestCallback<Array<ItemReference>> requestCallback = asyncRequestCallbackCaptor.getValue();
+        AsyncRequestCallback<List<ItemReference>> requestCallback = asyncRequestCallbackCaptor.getValue();
         GwtReflectionUtils.callOnFailure(requestCallback, mock(Throwable.class));
 
         verify(asyncCallback).onFailure(Matchers.<Throwable>anyObject());

@@ -19,7 +19,6 @@ import org.eclipse.che.ide.api.event.NodeChangedEvent;
 import org.eclipse.che.ide.api.project.tree.TreeNode;
 import org.eclipse.che.ide.api.project.tree.TreeStructure;
 import org.eclipse.che.ide.api.project.tree.VirtualFile;
-import org.eclipse.che.ide.collections.Array;
 import org.eclipse.che.ide.rest.AsyncRequestCallback;
 import org.eclipse.che.ide.rest.DtoUnmarshallerFactory;
 import org.eclipse.che.ide.rest.StringUnmarshaller;
@@ -30,6 +29,7 @@ import com.google.inject.assistedinject.Assisted;
 import com.google.web.bindery.event.shared.EventBus;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -56,7 +56,7 @@ public class FileNode extends ItemNode implements VirtualFile {
 
     /** {@inheritDoc} */
     @Override
-    public void rename(final String newName, final RenameCallback callback) {
+    public void rename(final String newName, final RenameCallback renameCallback) {
         final FileNode fileNode = this;
         String newMediaType = fileNode.getMediaType();
 
@@ -67,39 +67,53 @@ public class FileNode extends ItemNode implements VirtualFile {
         projectServiceClient.rename(oldNodePath, newName, newMediaType, new AsyncRequestCallback<Void>() {
             @Override
             protected void onSuccess(Void result) {
-                Unmarshallable<ItemReference> fileReferenceUnmarshallable = dtoUnmarshallerFactory.newUnmarshaller(ItemReference.class);
 
-                projectServiceClient.getItem(newPath, new AsyncRequestCallback<ItemReference>(fileReferenceUnmarshallable) {
+                updateData(new AsyncCallback<Void>() {
                     @Override
-                    protected void onSuccess(ItemReference result) {
-                        setData(result);
-
-                        onNodeRenamed(oldNodePath);
-
+                    public void onSuccess(Void result) {
                         eventBus.fireEvent(NodeChangedEvent.createNodeRenamedEvent(fileNode));
-                        callback.onRenamed();
                     }
 
                     @Override
-                    protected void onFailure(Throwable exception) {
-                        callback.onFailure(exception);
+                    public void onFailure(Throwable exception) {
+                        renameCallback.onFailure(exception);
                     }
-                });
+                }, newPath);
+
             }
 
             @Override
             protected void onFailure(Throwable exception) {
-                callback.onFailure(exception);
+                renameCallback.onFailure(exception);
             }
         });
     }
 
-    @Override
-    public void onNodeRenamed(String oldNodePath) {
-        final Array<String> pathOpenedEditors = editorAgent.getOpenedEditors().getKeys();
+    /** {@inheritDoc} */
+    public void updateData(final AsyncCallback<Void> asyncCallback, String newPath) {
+        final String oldNodePath = FileNode.this.getPath();
 
-        if (pathOpenedEditors.contains(oldNodePath)) {
-            editorAgent.updateEditorNode(oldNodePath, this);
+        Unmarshallable<ItemReference> unmarshaller = dtoUnmarshallerFactory.newUnmarshaller(ItemReference.class);
+        projectServiceClient.getItem(newPath, new AsyncRequestCallback<ItemReference>(unmarshaller) {
+            @Override
+            protected void onSuccess(ItemReference result) {
+                setData(result);
+                updateEditorPartData(oldNodePath);
+                asyncCallback.onSuccess(null);
+            }
+
+            @Override
+            protected void onFailure(Throwable exception) {
+                asyncCallback.onFailure(exception);
+            }
+        });
+    }
+
+    private void updateEditorPartData(String oldPath) {
+        final Collection<String> pathOpenedEditors = editorAgent.getOpenedEditors().keySet();
+
+        if (pathOpenedEditors.contains(oldPath)) {
+            editorAgent.updateEditorNode(oldPath, FileNode.this);
         }
     }
 

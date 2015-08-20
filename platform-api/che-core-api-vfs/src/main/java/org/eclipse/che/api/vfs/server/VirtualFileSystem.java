@@ -25,7 +25,7 @@ import org.eclipse.che.api.vfs.shared.dto.Lock;
 import org.eclipse.che.api.vfs.shared.dto.Property;
 import org.eclipse.che.api.vfs.shared.dto.ReplacementSet;
 import org.eclipse.che.api.vfs.shared.dto.VirtualFileSystemInfo;
-
+import org.eclipse.che.commons.lang.ws.rs.ExtMediaType;
 import org.apache.commons.fileupload.FileItem;
 
 import javax.ws.rs.Consumes;
@@ -36,6 +36,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
+
 import java.io.InputStream;
 import java.util.Iterator;
 import java.util.List;
@@ -53,6 +54,8 @@ public interface VirtualFileSystem {
      *         id of source item
      * @param parentId
      *         id of parent for new copy
+     * @param newName
+     *         new name for new copy
      * @return newly created copy of item
      * @throws NotFoundException
      *         if {@code id} or {@code parentId} doesn't exist
@@ -70,7 +73,7 @@ public interface VirtualFileSystem {
     @POST
     @Path("copy")
     @Produces({MediaType.APPLICATION_JSON})
-    Item copy(String id, String parentId) throws NotFoundException, ForbiddenException, ConflictException, ServerException;
+    Item copy(String id, String parentId, String newName) throws NotFoundException, ForbiddenException, ConflictException, ServerException;
 
     /**
      * Clone item to destination Virtual File System.
@@ -100,6 +103,7 @@ public interface VirtualFileSystem {
      */
     @POST
     @Path("clone")
+    @Deprecated
     Item clone(String srcPath, String srcVfsId, String parentPath, String name)
             throws NotFoundException, ForbiddenException, ConflictException, ServerException;
 
@@ -227,7 +231,7 @@ public interface VirtualFileSystem {
      *          "path":"/folder01/DOCUMENT01.txt",
      *          "versionId":"current",
      *          "creationDate":1292574268440,
-     *          "contentType":"text/plain",
+     *          "contentType":MediaType.TEXT_PLAIN,
      *          "length":100,
      *          "lastModificationDate":1292574268440
      *          "locked":false,
@@ -383,7 +387,7 @@ public interface VirtualFileSystem {
      *   "path":"/folder01/DOCUMENT01.txt",
      *   "versionId":"current",
      *   "creationDate":1292574268440,
-     *   "contentType":"text/plain",
+     *   "contentType":MediaType.TEXT_PLAIN,
      *   "length":100,
      *   "lastModificationDate":1292574268440
      *   "locked":false,
@@ -490,7 +494,7 @@ public interface VirtualFileSystem {
      *          "path":"/folder01/DOCUMENT01.txt",
      *          "versionId":"1",
      *          "creationDate":1292574263440,
-     *          "contentType":"text/plain",
+     *          "contentType":MediaType.TEXT_PLAIN,
      *          "length":56,
      *          "lastModificationDate":1292574263440
      *          "locked":false,
@@ -502,7 +506,7 @@ public interface VirtualFileSystem {
      *          "path":"/folder01/DOCUMENT01.txt",
      *          "versionId":"2",
      *          "creationDate":1292574265640,
-     *          "contentType":"text/plain",
+     *          "contentType":MediaType.TEXT_PLAIN,
      *          "length":83,
      *          "lastModificationDate":1292574265640
      *          "locked":false,
@@ -514,7 +518,7 @@ public interface VirtualFileSystem {
      *          "path":"/folder01/DOCUMENT01.txt",
      *          "versionId":"current",
      *          "creationDate":1292574267340,
-     *          "contentType":"text/plain",
+     *          "contentType":MediaType.TEXT_PLAIN,
      *          "length":100,
      *          "lastModificationDate":1292574268440
      *          "locked":false,
@@ -600,6 +604,8 @@ public interface VirtualFileSystem {
      *         id of item to be moved
      * @param parentId
      *         id of new parent
+     * @param newName
+     *         new name for destination
      * @param lockToken
      *         lock token. This lock token will be used if {@code id} is locked. Pass {@code null} if there is no lock token, e.g. item is
      *         not locked
@@ -621,7 +627,7 @@ public interface VirtualFileSystem {
     @POST
     @Path("move")
     @Produces({MediaType.APPLICATION_JSON})
-    Item move(String id, String parentId, String lockToken)
+    Item move(String id, String parentId, String newName, String lockToken)
             throws NotFoundException, ForbiddenException, ConflictException, ServerException;
 
     /**
@@ -875,7 +881,7 @@ public interface VirtualFileSystem {
      */
     @GET
     @Path("export")
-    @Produces({"application/zip"})
+    @Produces({ExtMediaType.APPLICATION_ZIP})
     ContentStream exportZip(String folderId) throws NotFoundException, ForbiddenException, ServerException;
 
     /**
@@ -921,8 +927,8 @@ public interface VirtualFileSystem {
      */
     @POST
     @Path("export")
-    @Produces({"application/zip"})
-    @Consumes({"text/plain"})
+    @Produces({ExtMediaType.APPLICATION_ZIP})
+    @Consumes({MediaType.TEXT_PLAIN})
     Response exportZip(String folderId, InputStream in) throws NotFoundException, ForbiddenException, ServerException;
 
     /**
@@ -968,8 +974,8 @@ public interface VirtualFileSystem {
      */
     @POST
     @Path("export")
-    @Produces({"multipart/form-data"})
-    @Consumes({"text/plain"})
+    @Produces({MediaType.MULTIPART_FORM_DATA})
+    @Consumes({MediaType.TEXT_PLAIN})
     Response exportZipMultipart(String folderId, InputStream in) throws NotFoundException, ForbiddenException, ServerException;
 
     /**
@@ -999,7 +1005,7 @@ public interface VirtualFileSystem {
      */
     @POST
     @Path("import")
-    @Consumes({"application/zip"})
+    @Consumes({ExtMediaType.APPLICATION_ZIP})
     void importZip(String parentId, InputStream in, Boolean overwrite, Boolean skipFirstLevel)
             throws NotFoundException, ForbiddenException, ConflictException, ServerException;
 
@@ -1074,7 +1080,7 @@ public interface VirtualFileSystem {
      */
     @GET
     @Path("downloadzip")
-    @Produces({"application/zip"})
+    @Produces({ExtMediaType.APPLICATION_ZIP})
     Response downloadZip(String folderId) throws NotFoundException, ForbiddenException, ServerException;
 
     /**

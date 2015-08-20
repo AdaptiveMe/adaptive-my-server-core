@@ -176,20 +176,13 @@ public final class XMLTree {
         if (xml.length == 0) {
             throw new XMLTreeException("Source content is empty");
         }
-        this.xml = xml;
         elements = new LinkedList<>();
         namespaces = newHashMapWithExpectedSize(EXPECTED_NAMESPACES_SIZE);
-        //using character reference '&#xD;' instead of carriage return character '\r'
+        this.xml = normalizeLineEndings(xml);
         //reason: parser is going to replace all '\r\n' sequences with single '\n'
         //which will affect elements position in source xml and produce incorrect XMLTree behaviour
-        //the solution comes from spec http://www.w3.org/TR/2004/REC-xml11-20040204/
-        //character references are not allowed in document prologue
-        //so only characters which are placed after root element should be replaced
-        int rootStart = rootStart(xml);
-        if (rootStart == -1) {
-            throw new XMLTreeException("XML document should contain root element");
-        }
-        document = parseQuietly(replaceAll(xml, (byte)'\r', "&#xD;".getBytes(), rootStart));
+        //it comes from spec http://www.w3.org/TR/2004/REC-xml11-20040204/
+        document = parseQuietly(this.xml);
         constructTreeQuietly();
     }
 
@@ -204,7 +197,7 @@ public final class XMLTree {
      * @see Element#getText()
      */
     public String getSingleText(String expression) {
-        return evaluateXPath(expression, STRING);
+        return (String)evaluateXPath(expression, STRING);
     }
 
     /**
@@ -233,12 +226,12 @@ public final class XMLTree {
      * @return list of found elements or empty list if elements were not found
      */
     public List<Element> getElements(String expression) {
-        final NodeList nodes = evaluateXPath(expression, NODESET);
+        final NodeList nodes = (NodeList)evaluateXPath(expression, NODESET);
         return asElements(nodes);
     }
 
     public <R> List<R> getElements(String expression, ElementMapper<? extends R> mapper) {
-        final NodeList nodes = evaluateXPath(expression, NODESET);
+        final NodeList nodes = (NodeList)evaluateXPath(expression, NODESET);
         return asElements(nodes, mapper);
     }
 
@@ -351,8 +344,13 @@ public final class XMLTree {
 
     /**
      * Returns copy of source bytes.
+     * TODO: write replacement explanation
      */
     public byte[] getBytes() {
+        final String separator = System.getProperty("line.separator");
+        if (!"\n".equals(separator)) {
+            return replaceAll(xml, "\n".getBytes(), separator.getBytes());
+        }
         return Arrays.copyOf(xml, xml.length);
     }
 
@@ -368,14 +366,14 @@ public final class XMLTree {
      * Writes source bytes to path
      */
     public void writeTo(Path path) throws IOException {
-        Files.write(path, xml);
+        Files.write(path, getBytes());
     }
 
     /**
      * Writes source bytes to file
      */
     public void writeTo(java.io.File file) throws IOException {
-        Files.write(file.toPath(), xml);
+        Files.write(file.toPath(), getBytes());
     }
 
     /**
@@ -383,10 +381,10 @@ public final class XMLTree {
      * Rethrows all exceptions as {@link XMLTreeException}
      */
     @SuppressWarnings("unchecked")
-    private <T> T evaluateXPath(String expression, QName returnType) {
+    private Object evaluateXPath(String expression, QName returnType) {
         final XPath xpath = XPATH_FACTORY.newXPath();
         try {
-            return (T)xpath.evaluate(expression, document, returnType);
+            return xpath.evaluate(expression, document, returnType);
         } catch (XPathExpressionException xpathEx) {
             throw XMLTreeException.wrap(xpathEx);
         }
@@ -410,7 +408,7 @@ public final class XMLTree {
      * using {@link Node#getTextContent()} method
      */
     private List<String> retrieveText(String expression) {
-        final NodeList nodeList = evaluateXPath(expression, NODESET);
+        final NodeList nodeList = (NodeList)evaluateXPath(expression, NODESET);
         final List<String> elementsText = new ArrayList<>(nodeList.getLength());
         for (int i = 0; i < nodeList.getLength(); i++) {
             elementsText.add(nodeList.item(i).getTextContent());
@@ -488,6 +486,8 @@ public final class XMLTree {
                         beforeStart = lastIndexOf(xml, '>', reader.getLocation().getCharacterOffset());
                     }
                     break;
+                default:
+                    //DO NOTHING
             }
             prevEvent = reader.getEventType();
         }
@@ -978,6 +978,17 @@ public final class XMLTree {
         return relatedToNew.end.right;
     }
 
+    private byte[] normalizeLineEndings(byte[] src) {
+        final String separator = System.getProperty("line.separator");
+        //replacing all \r\n with \n
+        if (separator.equals("\r\n")) {
+            src = replaceAll(src, "\r\n".getBytes(), "\n".getBytes());
+        }
+        //replacing all \r with \n to prevent combination of \r\n which was created after
+        //\r\n replacement, i.e. content \r\r\n after first replacement will be \r\n which is not okay
+        return replaceAll(src, "\r".getBytes(), "\n".getBytes());
+    }
+
     /**
      * Describes element, attribute or text position in
      * the source array of bytes.
@@ -1016,6 +1027,6 @@ public final class XMLTree {
 
     @Override
     public String toString() {
-        return new String(xml, UTF_8);
+        return new String(getBytes(), UTF_8);
     }
 }
