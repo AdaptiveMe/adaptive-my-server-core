@@ -40,7 +40,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -65,7 +64,7 @@ import static com.google.common.base.MoreObjects.firstNonNull;
  * @author Eugene Voevodin
  */
 @Singleton
-public class InternalBuildQueue implements BuildQueue {
+public class InternalBuildQueue /*implements BuildQueue*/ {
     private static final Logger LOG = LoggerFactory.getLogger(InternalBuildQueue.class);
 
     private static final long CHECK_AVAILABLE_BUILDER_DELAY = 2000;
@@ -136,13 +135,11 @@ public class InternalBuildQueue implements BuildQueue {
         started = new AtomicBoolean(false);
     }
 
-    @Override
     public int getTotalNum() {
         checkStarted();
         return tasks.size();
     }
 
-    @Override
     public int getWaitingNum() {
         checkStarted();
         int count = 0;
@@ -154,12 +151,10 @@ public class InternalBuildQueue implements BuildQueue {
         return count;
     }
 
-    @Override
     public List<RemoteBuilderServer> getRegisterBuilderServers() {
         return new ArrayList<>(builderServices.values());
     }
 
-    @Override
     public boolean registerBuilderServer(BuilderServerRegistration registration) throws BuilderException {
         checkStarted();
         final String url = registration.getBuilderServerLocation().getUrl();
@@ -202,7 +197,6 @@ public class InternalBuildQueue implements BuildQueue {
         return builderList.addBuilders(builderServer.getRemoteBuilders());
     }
 
-    @Override
     public boolean unregisterBuilderServer(BuilderServerLocation location) throws BuilderException {
         checkStarted();
         final String url = location.getUrl();
@@ -231,7 +225,7 @@ public class InternalBuildQueue implements BuildQueue {
         return modified;
     }
 
-    @Override
+
     public BuildQueueTask scheduleBuild(String wsId, String project, ServiceContext serviceContext, BuildOptions buildOptions)
             throws BuilderException {
         checkStarted();
@@ -304,7 +298,6 @@ public class InternalBuildQueue implements BuildQueue {
         };
     }
 
-    @Override
     public BuildQueueTask scheduleDependenciesAnalyze(String wsId, String project, String type, ServiceContext serviceContext,
                                                       BuildOptions buildOptions)
             throws BuilderException {
@@ -478,12 +471,10 @@ public class InternalBuildQueue implements BuildQueue {
         return null;
     }
 
-    @Override
     public List<BuildQueueTask> getTasks() {
         return new ArrayList<>(tasks.values());
     }
 
-    @Override
     public BuildQueueTask getTask(Long id) throws NotFoundException {
         final BuildQueueTask task = tasks.get(id);
         if (task == null) {
@@ -492,8 +483,6 @@ public class InternalBuildQueue implements BuildQueue {
         return task;
     }
 
-    @Override
-    @PostConstruct
     public void start() {
         if (started.compareAndSet(false, true)) {
             executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
@@ -659,7 +648,6 @@ public class InternalBuildQueue implements BuildQueue {
         }
     }
 
-    @Override
     @PreDestroy
     public void stop() {
         if (started.compareAndSet(true, false)) {

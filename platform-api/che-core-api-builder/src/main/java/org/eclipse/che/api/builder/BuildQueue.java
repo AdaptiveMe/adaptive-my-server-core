@@ -11,13 +11,15 @@
 package org.eclipse.che.api.builder;
 
 import org.eclipse.che.api.builder.dto.BuildOptions;
+import org.eclipse.che.api.builder.dto.BuildTaskDescriptor;
 import org.eclipse.che.api.builder.dto.BuilderServerLocation;
 import org.eclipse.che.api.builder.dto.BuilderServerRegistration;
+import org.eclipse.che.api.core.ForbiddenException;
 import org.eclipse.che.api.core.NotFoundException;
+import org.eclipse.che.api.core.rest.OutputProvider;
 import org.eclipse.che.api.core.rest.ServiceContext;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -71,9 +73,9 @@ public interface BuildQueue {
      *         name of project
      * @param serviceContext
      *         ServiceContext
-     * @return BuildQueueTask
+     * @return BuildTaskDescriptor
      */
-    BuildQueueTask scheduleBuild(String wsId, String project, ServiceContext serviceContext, BuildOptions buildOptions)
+    BuildTaskDescriptor scheduleBuild(String wsId, String project, ServiceContext serviceContext, BuildOptions buildOptions)
             throws BuilderException;
 
     /**
@@ -90,20 +92,75 @@ public interface BuildQueue {
      * @param buildOptions
      * @return BuildQueueTask
      */
-    BuildQueueTask scheduleDependenciesAnalyze(String wsId, String project, String type, ServiceContext serviceContext,
+    BuildTaskDescriptor scheduleDependenciesAnalyze(String wsId, String project, String type, ServiceContext serviceContext,
                                                BuildOptions buildOptions)
             throws BuilderException;
 
     /**
      * Return tasks of this queue.
      */
-    List<BuildQueueTask> getTasks();
+    List<BuildTaskDescriptor> getTasks();
 
-    BuildQueueTask getTask(Long id) throws NotFoundException;
+    /**
+     * return a task descriptor by ID
+     *
+     * @param id the task id
+     * @return
+     * @throws NotFoundException  in case the task does not exists
+     * @throws ForbiddenException in case the current user does not have access
+     */
+    BuildTaskDescriptor getTask(Long id) throws NotFoundException, ForbiddenException;
 
-    @PostConstruct
-    void start();
+    /**
+     * Tries to cancel a running or queued task
+     *
+     * @param id the task id
+     * @return
+     * @throws NotFoundException  in case the task does not exsits
+     * @throws ForbiddenException
+     */
+    BuildTaskDescriptor cancel(Long id) throws NotFoundException, ForbiddenException;
 
-    @PreDestroy
-    void stop();
+    /**
+     * Writes the log of the task to the outputstream
+     *
+     * @param id
+     * @param outputProvider
+     * @throws NotFoundException  in case the task does not exists
+     * @throws ForbiddenException in case the current user does not have access to the task
+     * @throws IOException        if an error occur writing to the response
+     */
+    void writeLog(Long id, OutputProvider outputProvider) throws NotFoundException, ForbiddenException, IOException;
+
+
+    /**
+     * @param id
+     * @param path
+     * @param outputProvider
+     * @throws NotFoundException
+     * @throws ForbiddenException
+     * @throws IOException
+     */
+    void readFile(Long id, String path, OutputProvider outputProvider) throws NotFoundException, ForbiddenException, IOException;
+
+
+    /**
+     * @param id
+     * @param path
+     * @param outputProvider
+     * @throws NotFoundException
+     * @throws ForbiddenException
+     * @throws IOException
+     */
+    void downloadFile(Long id, String path, OutputProvider outputProvider) throws NotFoundException, ForbiddenException, IOException;
+
+    /**
+     * @param id
+     * @param arch
+     * @param outputProvider
+     * @throws NotFoundException
+     * @throws ForbiddenException
+     * @throws IOException
+     */
+    void downloadResultArchive(Long id, String arch, OutputProvider outputProvider) throws NotFoundException, ForbiddenException, IOException;
 }
