@@ -10,53 +10,25 @@
  *******************************************************************************/
 package org.eclipse.che.api.builder.internal;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.eclipse.che.api.builder.BuilderException;
-import org.eclipse.che.api.builder.dto.BaseBuilderRequest;
-import org.eclipse.che.api.builder.dto.BuildRequest;
-import org.eclipse.che.api.builder.dto.BuilderEnvironment;
-import org.eclipse.che.api.builder.dto.BuilderMetric;
-import org.eclipse.che.api.builder.dto.DependencyRequest;
+import org.eclipse.che.api.builder.dto.*;
 import org.eclipse.che.api.builder.internal.BuilderEvent.EventType;
 import org.eclipse.che.api.core.ApiException;
 import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.notification.EventService;
 import org.eclipse.che.api.core.notification.EventSubscriber;
-import org.eclipse.che.api.core.util.Cancellable;
-import org.eclipse.che.api.core.util.CancellableProcessWrapper;
-import org.eclipse.che.api.core.util.CommandLine;
-import org.eclipse.che.api.core.util.ProcessUtil;
-import org.eclipse.che.api.core.util.StreamPump;
-import org.eclipse.che.api.core.util.Watchdog;
+import org.eclipse.che.api.core.util.*;
 import org.eclipse.che.commons.lang.IoUtil;
 import org.eclipse.che.dto.server.DtoFactory;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -550,7 +522,7 @@ public abstract class Builder {
      * @see #addBuildListener(BuildListener)
      * @see #removeBuildListener(BuildListener)
      */
-    public final BuildTask getBuildTask(Long id) throws NotFoundException {
+    public BuildTask getBuildTask(Long id) throws NotFoundException {
         final FutureBuildTask task = tasks.get(id);
         if (task == null) {
             throw new NotFoundException(String.format("Invalid build task id: %d", id));

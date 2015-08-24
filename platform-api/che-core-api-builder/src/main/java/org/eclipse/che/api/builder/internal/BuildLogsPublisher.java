@@ -20,14 +20,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @author andrew00x
  */
-class BuildLogsPublisher extends DelegateBuildLogger {
+public class BuildLogsPublisher extends DelegateBuildLogger {
     private final AtomicInteger lineCounter;
     private final EventService eventService;
     private final long         taskId;
     private final String       workspace;
     private final String       project;
 
-    BuildLogsPublisher(BuildLogger delegate, EventService eventService, long taskId, String workspace, String project) {
+    public BuildLogsPublisher(BuildLogger delegate, EventService eventService, long taskId, String workspace, String project) {
         super(delegate);
         this.eventService = eventService;
         this.taskId = taskId;
