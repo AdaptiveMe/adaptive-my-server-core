@@ -15,7 +15,6 @@ import org.eclipse.che.api.builder.dto.BuildOptions;
 import org.eclipse.che.api.builder.dto.BuildTaskDescriptor;
 import org.eclipse.che.api.builder.dto.BuilderDescriptor;
 import org.eclipse.che.api.builder.internal.Constants;
-import org.eclipse.che.api.core.rest.HttpServletProxyResponse;
 import org.eclipse.che.api.core.rest.Service;
 import org.eclipse.che.api.core.rest.annotations.Description;
 import org.eclipse.che.api.core.rest.annotations.GenerateLink;
@@ -29,6 +28,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -117,7 +117,7 @@ public class BuilderService extends Service {
         if (project != null && !project.startsWith("/")) {
             project = '/' + project;
         }
-        return buildQueue.getTasks();
+        return buildQueue.getTasks(workspace, project);
     }
 
     @ApiOperation(value = "Get build status",
@@ -136,7 +136,7 @@ public class BuilderService extends Service {
                                          @ApiParam(value = "Build ID", required = true)
                                          @PathParam("id")
                                          Long id) throws Exception {
-        return buildQueue.getTask(id);
+        return buildQueue.getTask(id, getServiceContext());
     }
 
     @ApiOperation(value = "Cancel build",
@@ -154,7 +154,7 @@ public class BuilderService extends Service {
                                       @PathParam("ws-id") String workspace,
                                       @ApiParam(value = "Build ID", required = true)
                                       @PathParam("id") Long id) throws Exception {
-        return buildQueue.cancel(id);
+        return buildQueue.cancel(id, getServiceContext());
     }
 
     @ApiOperation(value = "Get build logs",
@@ -166,13 +166,13 @@ public class BuilderService extends Service {
             @ApiResponse(code = 500, message = "Server error")})
     @GET
     @Path("/logs/{id}")
-    public void getLogs(@ApiParam(value = "Workspace ID", required = true)
+    public Response getLogs(@ApiParam(value = "Workspace ID", required = true)
                         @PathParam("ws-id") String workspace,
                         @ApiParam(value = "Get build logs", required = true)
                         @PathParam("id") Long id,
                         @Context HttpServletResponse httpServletResponse) throws Exception {
         // Response write directly to the servlet request stream
-        buildQueue.writeLog(id, new HttpServletProxyResponse(httpServletResponse));
+        return buildQueue.writeLog(id);
     }
 
 
@@ -185,13 +185,14 @@ public class BuilderService extends Service {
             @ApiResponse(code = 500, message = "Server error")})
     @GET
     @Path("/report/{id}")
-    public void getReport(@ApiParam(value = "Workspace ID", required = true)
+    public Response getReport(@ApiParam(value = "Workspace ID", required = true)
                           @PathParam("ws-id") String workspace,
                           @ApiParam(value = "Build ID", required = true)
                           @PathParam("id") Long id,
                           @Context HttpServletResponse httpServletResponse) throws Exception {
         // Response write directly to the servlet request stream
         //buildQueue.getTask(id).readReport(new HttpServletProxyResponse(httpServletResponse));
+        return null;
     }
 
     private static final Pattern JSON_CONTENT_TYPE_PATTERN = Pattern.compile("^application/json(\\s*;.*)?$");
@@ -199,7 +200,7 @@ public class BuilderService extends Service {
 
     @GET
     @Path("browse/{id}")
-    public void browseDirectory(@PathParam("ws-id") String workspace,
+    public Response browseDirectory(@PathParam("ws-id") String workspace,
                                 @PathParam("id") Long id,
                                 @DefaultValue(".") @QueryParam("path") String path,
                                 @Context HttpServletResponse httpServletResponse) throws Exception {
@@ -222,16 +223,17 @@ public class BuilderService extends Service {
                                                                                             urlRewriteRules));
         myRemoteTask.browseDirectory(path, proxyResponse);
         */
+        return null;
     }
 
     @GET
     @Path("/view/{id}")
-    public void viewFile(@PathParam("ws-id") String workspace,
+    public Response viewFile(@PathParam("ws-id") String workspace,
                          @PathParam("id") Long id,
                          @Required @QueryParam("path") String path,
                          @Context HttpServletResponse httpServletResponse) throws Exception {
         // Response write directly to the servlet request stream
-        buildQueue.readFile(id, path, new HttpServletProxyResponse(httpServletResponse));
+        return buildQueue.readFile(id, path);
     }
 
     /*
@@ -270,7 +272,7 @@ public class BuilderService extends Service {
             @ApiResponse(code = 500, message = "Server error")})
     @GET
     @Path("/download/{id}")
-    public void downloadFile(@ApiParam(value = "Workspace ID", required = true)
+    public Response downloadFile(@ApiParam(value = "Workspace ID", required = true)
                              @PathParam("ws-id") String workspace,
                              @ApiParam(value = "Build ID", required = true)
                              @PathParam("id") Long id,
@@ -278,7 +280,7 @@ public class BuilderService extends Service {
                              @Required @QueryParam("path") String path,
                              @Context HttpServletResponse httpServletResponse) throws Exception {
         // Response write directly to the servlet request stream
-        buildQueue.downloadFile(id, path, new HttpServletProxyResponse(httpServletResponse));
+        return buildQueue.downloadFile(id, path);
     }
 
     @ApiOperation(value = "Download all build artifact as tar or zip archive",
@@ -290,7 +292,7 @@ public class BuilderService extends Service {
             @ApiResponse(code = 500, message = "Server error")})
     @GET
     @Path("/download-all/{id}")
-    public void downloadResultArchive(@ApiParam(value = "Workspace ID", required = true)
+    public Response downloadResultArchive(@ApiParam(value = "Workspace ID", required = true)
                                       @PathParam("ws-id") String workspace,
                                       @ApiParam(value = "Build ID", required = true)
                                       @PathParam("id") Long id,
@@ -298,7 +300,7 @@ public class BuilderService extends Service {
                                       @Required @QueryParam("arch") String arch,
                                       @Context HttpServletResponse httpServletResponse) throws Exception {
         // Response write directly to the servlet request stream
-        buildQueue.downloadResultArchive(id, arch, new HttpServletProxyResponse(httpServletResponse));
+        return buildQueue.downloadResultArchive(id, arch);
     }
 
     @ApiOperation(value = "Get all builders",

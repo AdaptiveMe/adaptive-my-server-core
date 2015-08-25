@@ -16,10 +16,10 @@ import org.eclipse.che.api.builder.dto.BuilderServerLocation;
 import org.eclipse.che.api.builder.dto.BuilderServerRegistration;
 import org.eclipse.che.api.core.ForbiddenException;
 import org.eclipse.che.api.core.NotFoundException;
-import org.eclipse.che.api.core.rest.OutputProvider;
+import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.api.core.rest.ServiceContext;
 
-import java.io.IOException;
+import javax.ws.rs.core.Response;
 import java.util.List;
 
 /**
@@ -93,74 +93,76 @@ public interface BuildQueue {
      * @return BuildQueueTask
      */
     BuildTaskDescriptor scheduleDependenciesAnalyze(String wsId, String project, String type, ServiceContext serviceContext,
-                                               BuildOptions buildOptions)
+                                                    BuildOptions buildOptions)
             throws BuilderException;
 
+
     /**
-     * Return tasks of this queue.
+     * Get all tasks for a single project in a workspace
+     * @param workspace
+     * @param project
+     * @return
      */
-    List<BuildTaskDescriptor> getTasks();
+    List<BuildTaskDescriptor> getTasks(String workspace, String project);
 
     /**
      * return a task descriptor by ID
      *
      * @param id the task id
+     * @param context the ServiceContext
      * @return
      * @throws NotFoundException  in case the task does not exists
      * @throws ForbiddenException in case the current user does not have access
      */
-    BuildTaskDescriptor getTask(Long id) throws NotFoundException, ForbiddenException;
+    BuildTaskDescriptor getTask(Long id, ServiceContext context) throws NotFoundException, ForbiddenException;
 
     /**
      * Tries to cancel a running or queued task
      *
      * @param id the task id
+     * @param context the ServiceContext
      * @return
      * @throws NotFoundException  in case the task does not exsits
      * @throws ForbiddenException
      */
-    BuildTaskDescriptor cancel(Long id) throws NotFoundException, ForbiddenException;
+    BuildTaskDescriptor cancel(Long id, ServiceContext context) throws NotFoundException, ForbiddenException;
 
     /**
      * Writes the log of the task to the outputstream
      *
      * @param id
-     * @param outputProvider
      * @throws NotFoundException  in case the task does not exists
      * @throws ForbiddenException in case the current user does not have access to the task
-     * @throws IOException        if an error occur writing to the response
+     * @throws ServerException        if an error occur writing to the response
      */
-    void writeLog(Long id, OutputProvider outputProvider) throws NotFoundException, ForbiddenException, IOException;
+    Response writeLog(Long id) throws NotFoundException, ForbiddenException, ServerException;
 
 
     /**
      * @param id
      * @param path
-     * @param outputProvider
      * @throws NotFoundException
      * @throws ForbiddenException
-     * @throws IOException
+     * @throws ServerException
      */
-    void readFile(Long id, String path, OutputProvider outputProvider) throws NotFoundException, ForbiddenException, IOException;
+    Response readFile(Long id, String path) throws NotFoundException, ForbiddenException, ServerException;
 
 
     /**
      * @param id
      * @param path
-     * @param outputProvider
      * @throws NotFoundException
      * @throws ForbiddenException
-     * @throws IOException
+     * @throws ServerException
      */
-    void downloadFile(Long id, String path, OutputProvider outputProvider) throws NotFoundException, ForbiddenException, IOException;
+    Response downloadFile(Long id, String path) throws NotFoundException, ForbiddenException, ServerException;
 
     /**
      * @param id
      * @param arch
-     * @param outputProvider
      * @throws NotFoundException
      * @throws ForbiddenException
-     * @throws IOException
+     * @throws ServerException
      */
-    void downloadResultArchive(Long id, String arch, OutputProvider outputProvider) throws NotFoundException, ForbiddenException, IOException;
+    Response downloadResultArchive(Long id, String arch) throws NotFoundException, ForbiddenException, ServerException;
 }
