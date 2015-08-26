@@ -33,9 +33,6 @@ import org.eclipse.che.commons.lang.cache.SynchronizedCache;
 import org.eclipse.che.commons.lang.concurrent.ThreadLocalPropagateContext;
 import org.eclipse.che.commons.user.User;
 import org.eclipse.che.dto.server.DtoFactory;
-import org.everrest.core.impl.provider.json.JsonUtils;
-import org.everrest.websockets.WSConnectionContext;
-import org.everrest.websockets.message.ChannelBroadcastMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -582,7 +579,7 @@ public class InternalBuildQueue /*implements BuildQueue*/ {
                 }
             });
 
-            eventService.subscribe(new BuildStatusMessenger());
+            //eventService.subscribe(new BuildStatusMessenger(this));
 
             //Log events for analytics
             eventService.subscribe(new AnalyticsMessenger());
@@ -933,36 +930,4 @@ public class InternalBuildQueue /*implements BuildQueue*/ {
         }
     }
 
-    private class BuildStatusMessenger implements EventSubscriber<BuilderEvent> {
-        @Override
-        public void onEvent(BuilderEvent event) {
-            try {
-                final ChannelBroadcastMessage bm = new ChannelBroadcastMessage();
-                final long id = event.getTaskId();
-                switch (event.getType()) {
-                    case BEGIN:
-                    case DONE:
-                        bm.setChannel(String.format("builder:status:%d", id));
-                        try {
-                            bm.setBody(DtoFactory.getInstance().toJson(getTask(id).getDescriptor()));
-                        } catch (BuilderException re) {
-                            bm.setType(ChannelBroadcastMessage.Type.ERROR);
-                            bm.setBody(String.format("{\"message\":%s}", JsonUtils.getJsonString(re.getMessage())));
-                        }
-                        break;
-                    case MESSAGE_LOGGED:
-                        final BuilderEvent.LoggedMessage message = event.getMessage();
-                        if (message != null) {
-                            bm.setChannel(String.format("builder:output:%d", id));
-                            bm.setBody(String.format("{\"num\":%d, \"line\":%s}",
-                                    message.getLineNum(), JsonUtils.getJsonString(message.getMessage())));
-                        }
-                        break;
-                }
-                WSConnectionContext.sendMessage(bm);
-            } catch (Exception e) {
-                LOG.warn(e.getMessage(), e);
-            }
-        }
-    }
 }

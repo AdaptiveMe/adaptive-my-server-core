@@ -117,6 +117,16 @@ public interface BuildQueue {
     BuildTaskDescriptor getTask(Long id, ServiceContext context) throws NotFoundException, ForbiddenException;
 
     /**
+     * return a task descriptor by ID
+     *
+     * @param id the task id
+     * @return
+     * @throws NotFoundException  in case the task does not exists
+     * @throws ForbiddenException in case the current user does not have access
+     */
+    BuildTaskDescriptor getTask(Long id) throws NotFoundException, ForbiddenException;
+
+    /**
      * Tries to cancel a running or queued task
      *
      * @param id the task id
