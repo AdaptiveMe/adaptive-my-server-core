@@ -12,6 +12,7 @@ package org.eclipse.che.api.builder;
 
 import org.eclipse.che.api.builder.internal.BuilderEvent;
 import org.eclipse.che.api.core.notification.EventSubscriber;
+import org.eclipse.che.api.core.rest.ServiceContext;
 import org.eclipse.che.dto.server.DtoFactory;
 import org.everrest.core.impl.provider.json.JsonUtils;
 import org.everrest.websockets.WSConnectionContext;
@@ -22,10 +23,12 @@ import org.slf4j.LoggerFactory;
  * Created by panthro on 25/08/15.
  */
 public class BuildStatusMessenger implements EventSubscriber<BuilderEvent> {
-    private BuildQueue buildQueue;
+    private final BuildQueue buildQueue;
+    private final ServiceContext context;
 
-    public BuildStatusMessenger(BuildQueue buildQueue) {
+    public BuildStatusMessenger(BuildQueue buildQueue, ServiceContext context) {
         this.buildQueue = buildQueue;
+        this.context = context;
     }
 
     @Override
@@ -37,7 +40,7 @@ public class BuildStatusMessenger implements EventSubscriber<BuilderEvent> {
                 case BEGIN:
                 case DONE:
                     bm.setChannel(String.format("builder:status:%d", id));
-                    bm.setBody(DtoFactory.getInstance().toJson(buildQueue.getTask(id)));
+                    bm.setBody(DtoFactory.getInstance().toJson(buildQueue.getTask(id,context)));
                     break;
                 case MESSAGE_LOGGED:
                     final BuilderEvent.LoggedMessage message = event.getMessage();
