@@ -277,7 +277,7 @@ public class BuilderService extends Service {
                              @ApiParam(value = "Build ID", required = true)
                              @PathParam("id") Long id,
                              @ApiParam(value = "Path to a build artifact as /target/{BuildArtifactName}", required = true)
-                             @Required @QueryParam("path") String path,
+                             @QueryParam("path") String path,
                              @Context HttpServletResponse httpServletResponse) throws Exception {
         // Response write directly to the servlet request stream
         return buildQueue.downloadFile(id, path);
